@@ -112,3 +112,21 @@ Open:
 ```text
 http://127.0.0.1:8765/
 ```
+
+## Phone Or Tailscale Device Cannot Open The Dashboard
+
+`npm run serve` listens on `127.0.0.1`, which only works from the same computer.
+
+Use:
+
+```bash
+npm run serve:lan
+```
+
+Then open:
+
+```text
+http://<your-computer-ip>:8765/
+```
+
+For Tailscale, use the computer's Tailscale IP or MagicDNS name. If it still does not load, check that macOS firewall allows incoming connections for Node.

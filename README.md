@@ -22,7 +22,7 @@ It is built for personal flight research: compare dates, routes, prices, total t
 
 ![Date comparison](docs/assets/date-compare.png)
 
-![Flight detail drawer](docs/assets/flight-detail-drawer.png)
+![Route evidence](docs/assets/route-evidence.png)
 
 ## Quick Start
 
@@ -41,6 +41,20 @@ npm run serve
 ```
 
 Then open [http://127.0.0.1:8765/](http://127.0.0.1:8765/).
+
+Want to open it from another device on your LAN or Tailscale network?
+
+```bash
+npm run serve:lan
+```
+
+Then open:
+
+```text
+http://<your-computer-ip>:8765/
+```
+
+The normal `npm run serve` command only listens on `127.0.0.1`, which means the dashboard is available from the same machine only.
 
 `npm run setup` creates the project virtual environment for you, installs the flight search dependency, and writes the local `.env` file. You do not need to manually create a Python environment.
 

@@ -17,6 +17,7 @@
     "plan:archive": "node src/cli.js plan:archive",
     "plan:list-dashboard": "node src/cli.js plan:list-dashboard",
     "serve": "node src/local-server.js",
+    "serve:lan": "HOST=0.0.0.0 node src/local-server.js",
     "test": "node --test",
     "guard:bloat": "node scripts/check-file-sizes.mjs",
     "release:audit": "node scripts/release-audit.mjs"

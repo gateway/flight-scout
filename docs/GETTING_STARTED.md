@@ -45,6 +45,20 @@ http://127.0.0.1:8765/
 
 The root page lists active plans and links to each plan dashboard.
 
+To view the app from another device on your LAN or Tailscale network, start it with:
+
+```bash
+npm run serve:lan
+```
+
+Then open:
+
+```text
+http://<your-computer-ip>:8765/
+```
+
+The regular `npm run serve` command binds to `127.0.0.1`, which only accepts same-machine browser traffic.
+
 ## 3. Check Intent
 
 If you installed the Codex skill, you can start in Codex with:

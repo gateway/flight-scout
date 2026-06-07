@@ -21,6 +21,18 @@ Open:
 http://127.0.0.1:8765/
 ```
 
+Open from another device on your LAN or Tailscale network:
+
+```bash
+npm run serve:lan
+```
+
+Then open:
+
+```text
+http://<your-computer-ip>:8765/
+```
+
 ## Intent And Plan Creation
 
 Check what the app understands:
