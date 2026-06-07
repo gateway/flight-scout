@@ -1,11 +1,11 @@
 ---
 name: flight-plan-riffer
-description: Turn rough natural-language flight ideas into saved flight research plans with route ideas, date windows, cheapest-date scans, optional stopovers, alternate starts, airport-code clarification, filters, viability rules, FLI-first provider strategy, and confirmation-gated refresh strategy. Use when the user wants to brainstorm or create a flight plan, compare routes, include or skip stopovers, search plus/minus date ranges, avoid long flights or tight layovers, track price drops, refresh flight data, or build/update a local flight-research-agent plan/dashboard.
+description: Turn rough natural-language flight ideas into practical route comparisons with saved flight research plans, date windows, cheapest-date scans, optional stopovers, alternate starts, airport-code clarification, filters, viability rules, FLI-first provider strategy, and confirmation-gated refresh strategy. Use when the user wants to riff through a trip idea, compare routes, include or skip stopovers, search plus/minus date ranges, avoid long flights or tight layovers, track price movement, refresh flight data, or ask for the best choices across saved plans.
 ---
 
 # Flight Plan Riffer
 
-Use this skill to convert a human travel riff into a concrete flight research plan. The goal is not to book flights; it is to understand intent, capture the right searches, avoid unnecessary local FLI searches, and present human-readable tradeoffs.
+Use this skill to riff a human travel idea into practical route options and a concrete flight research plan. The goal is not to book flights or ask the user to generate pages; it is to understand intent, compare sensible routes, capture the right searches, avoid unnecessary local FLI searches, and present human-readable tradeoffs.
 
 ## Workflow
 
@@ -13,9 +13,12 @@ Use this skill to convert a human travel riff into a concrete flight research pl
    - Extract origin, destination, date window, trip type, passenger count, stopovers, alternate starts, budget, filters, watch/alert rules, and pain limits.
    - Treat "date A to B" as a set of one-way candidate departure dates unless the user explicitly asks round trip.
    - Treat "plus or minus N days" as a centered date window.
+   - Treat "plus or minus a few days" as ambiguous; ask whether they mean plus/minus 2 or 3 days unless the prior context makes it obvious.
+   - Treat "I need to be there around X" as a departure-date search window unless the user clearly means an arrival deadline. If arrival deadline changes the search, ask.
    - Treat "cheapest dates", "best days", or "find the cheapest day" as a date-window scan, not a single-date search.
    - Treat "maybe stop in X" as an optional route idea, not a required route.
    - Treat "if X is too expensive, skip it" as a direct route plus a stopover route comparison.
+   - Treat "I could stay in X for one or two nights" as an optional alternate-start or stopover route with explicit stay nights and the user's hotel estimate when provided.
    - Treat "watch this", "track this", "tell me if it drops", or "under $X" as saved plan metadata for future refresh comparison.
 
 2. Ask clarifying questions only when needed.
@@ -32,6 +35,10 @@ Use this skill to convert a human travel riff into a concrete flight research pl
    - Include alternate starts when the user mentions nearby airports, gateway cities, or getting to a different city before the long-haul flight.
    - Include stopover routes as separate route ideas with explicit stay nights.
    - Include "skip stopover" alternatives when the user says the stopover is optional.
+   - For Chiang Mai to Redmond with an optional Bangkok stay, compare:
+     - Chiang Mai to Redmond/RDM as the clean start-from-origin route.
+     - Chiang Mai to Bangkok plus 1-2 hotel nights, then Bangkok to Redmond/RDM as a budget/logistics route.
+     - Bangkok to Redmond/RDM only as part of the alternate-start route unless the user says they can already be in Bangkok.
 
 4. Convert preferences into enforceable rules.
    - "no long long flights", "brutal", or "painful" -> hard elapsed-time threshold.
@@ -50,11 +57,11 @@ Use this skill to convert a human travel riff into a concrete flight research pl
    - After a scan, verify the new snapshot has complete options for the requested destination before calling the scan successful. If FLI searches fail or the dashboard would show no decision-ready flights, stop and report the setup issue instead of falling back to stale cache data.
    - When regenerating a snapshot from a selected refresh plan, aggregate only the searches selected for that refresh so unrelated old cache files cannot fake results for the current plan.
 
-6. Present results like a human decision aid.
+6. Present results like a human travel assistant.
    - Lead with the best practical choice, not raw cheapest.
    - Show cheapest, fastest, best balance, and best stopover as tradeoffs.
    - Explain total travel time, air time, layovers, stopover nights, and tight connection risk.
-   - Keep "View" links to Google Flights or provider verification pages.
+   - Keep "View" links to Google Flights or provider verification pages when the app renders results.
    - Use the shared dashboard semantic highlight vocabulary for decision-changing phrases:
      - `text-signal-good` / `metric-signal-good` for savings, cheaper dates, and under-budget results.
      - `text-signal-warn` / `metric-signal-warn` for extra cost, added travel time, long waits, or logistics tradeoffs.
@@ -62,6 +69,7 @@ Use this skill to convert a human travel riff into a concrete flight research pl
      - `text-signal-info` / `metric-signal-info` for stable facts such as best-balanced, same price, or key time/price facts.
    - Do not invent one-off highlight colors, underlines, pill styles, or inline CSS for generated plan pages. If emphasis is needed, add it through the shared renderer/CSS classes so every page stays visually consistent.
    - Do not mention external tool brands, booking platforms, or provider internals unless the user asks. The user experience is the local flight research agent.
+   - Do not lead with implementation output. The user is asking for route thinking; saved pages are only the place results appear after a confirmed search.
 
 7. Analyze saved plans when the user asks for current recommendations.
    - If the user asks for "top options", "best across my current plans", "compare all active plans", or similar, do not create a new plan by default.
@@ -84,10 +92,13 @@ If you create or update a plan from prior chat context, still repeat the interpr
 
 For FLI scans, still show what will run before starting. Do not run local searches until the user explicitly confirms.
 
+Do not ask the user to request HTML, dashboards, or report generation. The skill's job is route reasoning, search planning, confirmation, and then using the app's normal outputs after an approved search.
+
 ### Tone Rules
 
 - Write like a practical travel assistant, not an internal CLI.
 - Avoid internal implementation phrases about scan setup, provider paths, unknown cache state, or provider work in user-facing replies.
+- Say "I understand the route ideas as..." or "I would compare..." before talking about saved plans.
 - Prefer phrasing like:
   - "Here is how I would set this up before searching."
   - "I would check these 5 departure dates: July 30, July 31, August 1, August 2, and August 3."
@@ -98,6 +109,17 @@ For FLI scans, still show what will run before starting. Do not run local search
   - "Should 25 hours be a hard cutoff, or should I show slightly longer flights if they are much cheaper?"
   - "Should I search both Tokyo airports, HND and NRT?"
   - "Do you want plus/minus 2 days or plus/minus 3 days?"
+
+## Example Interpretation Pattern
+
+For a request like "I need to fly from Chiang Mai to Redmond, Oregon around August 1, plus or minus a few days. Nothing over 26 hours. I might stay in Bangkok for 1 or 2 nights if it helps, hotel about $50/night," reply before searching:
+
+- Confirm this is a one-way trip to Redmond/RDM around August 1.
+- Ask whether "a few days" means plus/minus 2 or plus/minus 3 if not already clear.
+- Compare Chiang Mai -> Redmond/RDM against Chiang Mai -> Bangkok + 1-2 hotel nights + Bangkok -> Redmond/RDM.
+- Use the user's hotel estimate in the route tradeoff math.
+- Treat over 26 hours total travel time as a hard reject unless the user changes it.
+- Wait for confirmation before searching.
 
 ## Local Project Pattern
 
@@ -115,13 +137,13 @@ Use single quotes around natural-language shell arguments, especially when the t
 
 Do not run local FLI searches without explicit user confirmation.
 
-The dashboard server is separate from the skill. If the user wants to view dashboards and the server is not running, start it with:
+The dashboard server is separate from the skill. If the user wants to view saved results and the server is not running, start it with:
 
 ```bash
 npm run serve
 ```
 
-In the local Codex desktop app, open `http://127.0.0.1:8765/` in the in-app browser after dashboards are generated. In cloud or remote environments, generate the HTML pages and report the `outputs/` paths if direct browser viewing is not available.
+In the local Codex desktop app, open `http://127.0.0.1:8765/` in the in-app browser after saved results are generated. In cloud or remote environments, report the generated output paths if direct browser viewing is not available.
 
 For saved-plan analysis, use the root plans dashboard as the first source of truth after regeneration:
 

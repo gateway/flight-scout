@@ -48,6 +48,18 @@ Expected behavior:
 - show whether the cheaper start is actually worth the hassle
 - keep both choices visible in the dashboard
 
+## Nearby City With Hotel Stay
+
+> I need to fly from Chiang Mai to Redmond, Oregon around August 1, plus or minus a few days. I do not want anything over 26 hours total. I am also open to flying from Chiang Mai to Bangkok, staying in Bangkok for one or two nights at about $50 per night, and then flying Bangkok to Redmond if that makes the whole trip cheaper or cleaner.
+
+Expected behavior:
+
+- ask whether "a few days" means plus/minus 2 or plus/minus 3 if that is not clear
+- compare Chiang Mai to Redmond against Chiang Mai to Bangkok plus hotel nights plus Bangkok to Redmond
+- include the hotel estimate when comparing total cost
+- reject routes over the stated total-time limit
+- show the route plan back first and wait for confirmation before searching
+
 ## Optional Stopover
 
 ```text

@@ -18,6 +18,7 @@ Use this reference when turning a natural-language trip idea into structured pla
 
 - Default currency: `USD`.
 - Never compare explicit mixed-currency snapshots as price movement.
+- User-provided hotel estimates override defaults when modeling stopovers or alternate-start routes.
 
 ## Route Idea Patterns
 
@@ -74,14 +75,16 @@ Separate start before the long-haul:
   "type": "alternate-start-stopover",
   "stopover": {
     "label": "Bangkok",
-    "nights": [1],
-    "hotelEstimateUsdPerNight": 80
+    "nights": [1, 2],
+    "hotelEstimateUsdPerNight": 50
   },
   "required": false,
   "batches": ["bangkok-stopover"],
   "focusSearchIds": []
 }
 ```
+
+Use this pattern when the user says they are willing to fly to a larger nearby city, stay a night or two, and start the long-haul from there. Keep the origin-to-gateway leg, hotel nights, and gateway-to-final flight separate in the plan so the final comparison can show both savings and logistics.
 
 ## Clarifying Questions
 
