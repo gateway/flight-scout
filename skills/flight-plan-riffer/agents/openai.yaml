@@ -1,0 +1,4 @@
+interface:
+  display_name: "Flight Plan Riffer"
+  short_description: "Turn trip ideas into flight research plans"
+  default_prompt: "Use $flight-plan-riffer to turn my rough flight idea into route ideas, date windows, stopovers, filters, and a confirmation-gated refresh plan."

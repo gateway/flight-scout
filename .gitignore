@@ -1,0 +1,29 @@
+node_modules/
+.venv/
+.DS_Store
+*.log
+
+# Local secrets. Never commit real API tokens.
+.env
+.env.*
+!.env.example
+
+# Generated and personal flight data.
+cache/
+outputs/
+plans/
+trips/
+work/
+index.html
+
+# Local development planning notes. Keep public docs in docs/.
+TASKLIST*.md
+TEST_NOTES_*.md
+docs/CODEX_WORKFLOW.md
+docs/ENGINEERING_SPEC.md
+docs/HUMAN_DECISION_DASHBOARD_SPEC.md
+docs/LOW_COST_PROVIDER_AND_PUBLIC_RELEASE_SPEC.md
+docs/NATURAL_LANGUAGE_PLAN_FLOW_SPEC.md
+docs/PLAN_DASHBOARD_REFRESH_SPEC.md
+docs/RELEASE_HARDENING_SPEC.md
+docs/reviews/

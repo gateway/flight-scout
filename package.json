@@ -1,0 +1,27 @@
+{
+  "name": "flight-scout",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local flight research dashboards for flexible dates, routes, prices, and connection risk.",
+  "scripts": {
+    "setup": "node scripts/setup-local.mjs",
+    "skill:install": "node scripts/install-skill.mjs",
+    "intent": "node src/cli.js intent",
+    "plan:new": "node src/cli.js plan:new",
+    "plan:refresh-plan": "node src/cli.js plan:refresh-plan",
+    "plan:refresh": "node src/cli.js plan:refresh",
+    "plan:compare": "node src/cli.js plan:compare",
+    "plan:snapshots": "node src/cli.js plan:snapshots",
+    "plan:dashboard": "node src/cli.js plan:dashboard",
+    "plan:archive": "node src/cli.js plan:archive",
+    "plan:list-dashboard": "node src/cli.js plan:list-dashboard",
+    "serve": "node src/local-server.js",
+    "test": "node --test",
+    "guard:bloat": "node scripts/check-file-sizes.mjs",
+    "release:audit": "node scripts/release-audit.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

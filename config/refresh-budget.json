@@ -1,0 +1,23 @@
+{
+  "provider": "fli-google-flights",
+  "requestDelayMs": 5000,
+  "staleAfterHours": 24,
+  "modes": {
+    "light": {
+      "description": "Refresh only decision-critical searches and known good route leads.",
+      "maxCalls": 12
+    },
+    "standard": {
+      "description": "Refresh the main route ideas across the checked date window.",
+      "maxCalls": 28
+    },
+    "targeted-deep": {
+      "description": "Broaden coverage around viable route families without refreshing every exploratory branch.",
+      "maxCalls": 42
+    },
+    "deep": {
+      "description": "Refresh broad exploration. Use only when the trip decision changed or old data is stale.",
+      "maxCalls": 60
+    }
+  }
+}

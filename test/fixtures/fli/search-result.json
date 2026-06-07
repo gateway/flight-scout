@@ -1,0 +1,40 @@
+{
+  "ok": true,
+  "provider": "fli-google-flights",
+  "currency": "THB",
+  "searchTimestamp": "2026-06-04T10:00:00Z",
+  "results": [
+    {
+      "price": 1695,
+      "currency": "THB",
+      "durationMinutes": 70,
+      "stops": 0,
+      "airline": "Thai Lion Air",
+      "departureAirport": "CNX",
+      "arrivalAirport": "DMK",
+      "departureTime": "2026-08-01 07:10",
+      "arrivalTime": "2026-08-01 08:20",
+      "legs": [
+        {
+          "airlineName": "Thai Lion Air",
+          "flightNumber": "519",
+          "durationMinutes": 70,
+          "departureAirport": "CNX",
+          "departureAirportName": "Chiang Mai International Airport",
+          "arrivalAirport": "DMK",
+          "arrivalAirportName": "Don Mueang International Airport",
+          "departureTime": "2026-08-01 07:10",
+          "arrivalTime": "2026-08-01 08:20"
+        }
+      ],
+      "layovers": [],
+      "bookingToken": "fixture-token"
+    }
+  ],
+  "debug": {
+    "returned": 1,
+    "cleanResultCount": 1,
+    "rejectedCount": 1,
+    "rejected": [{ "reason": "missing price", "route": "CNX->DMK" }]
+  }
+}
