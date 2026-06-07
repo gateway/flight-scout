@@ -63,9 +63,7 @@ The regular `npm run serve` command binds to `127.0.0.1`, which only accepts sam
 
 If you installed the Codex skill, you can start in Codex with:
 
-```text
-Use $flight-plan-riffer. Find one-way flights from Chiang Mai to Tokyo around August 1, plus or minus 2 days. Budget under $800 and under 10 hours if possible.
-```
+> Use `$flight-plan-riffer`. Find one-way flights from Chiang Mai to Tokyo around August 1, plus or minus 2 days. Budget under $800 and under 10 hours if possible.
 
 The skill should repeat back the understood plan and ask for confirmation before local FLI searches run.
 

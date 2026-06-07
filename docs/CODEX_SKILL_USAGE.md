@@ -50,9 +50,7 @@ The skill can ask Codex to start this server when you request it, but the server
 
 In Codex, ask with the skill name:
 
-```text
-Use $flight-plan-riffer. I need a one-way flight from Bangkok to Redmond around August 1, plus or minus 3 days. Keep it under 26 hours and around $1,200 if possible.
-```
+> Use `$flight-plan-riffer`. I need a one-way flight from Bangkok to Redmond around August 1, plus or minus 3 days. Keep it under 26 hours and around $1,200 if possible.
 
 Expected behavior:
 

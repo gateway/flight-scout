@@ -68,9 +68,9 @@ The search layer requests USD results with US English locale settings so prices 
 
 ## Use It With An Assistant
 
-The dashboard is the local app. The skill is the assistant layer that turns your rough travel request into the right local app commands.
+The dashboard is the local app. The Codex skill is the assistant layer that turns your rough travel request into the right local app commands.
 
-Today, the packaged skill is for Codex. To install it:
+Install the Codex skill:
 
 ```bash
 npm run skill:install
@@ -96,21 +96,13 @@ Claude or another assistant can still use the project by following the command d
 
 Good starter prompts:
 
-```text
-Use $flight-plan-riffer. Find one-way flights from Bangkok to Redmond, Oregon around August 1, 2026, plus or minus three days. Keep it under 26 hours and around $1,200 if possible.
-```
+> Use `$flight-plan-riffer`. Find one-way flights from Bangkok to Redmond, Oregon around August 1, 2026, plus or minus three days. Keep it under 26 hours and around $1,200 if possible.
 
-```text
-Use $flight-plan-riffer. Compare flying from Chiang Mai straight home versus starting from Bangkok first. I care most about saving money, but I do not want a brutal travel day.
-```
+> Use `$flight-plan-riffer`. Compare flying from Chiang Mai straight home versus starting from Bangkok first. I care most about saving money, but I do not want a brutal travel day.
 
-```text
-Use $flight-plan-riffer. Find Chiang Mai to Tokyo around August 1, plus or minus two days. Check both Tokyo airports, keep it under $800 if possible, and prefer under 10 hours.
-```
+> Use `$flight-plan-riffer`. Find Chiang Mai to Tokyo around August 1, plus or minus two days. Check both Tokyo airports, keep it under $800 if possible, and prefer under 10 hours.
 
-```text
-Use $flight-plan-riffer. Refresh my saved flight plan and tell me what changed since the last scan.
-```
+> Use `$flight-plan-riffer`. Refresh my saved flight plan and tell me what changed since the last scan.
 
 The skill is designed to ask short clarifying questions when something important is missing. When the request is clear, it repeats the plan back first so you can confirm the airports, dates, route ideas, and filters before it searches.
 
