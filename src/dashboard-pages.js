@@ -3,6 +3,8 @@ import { airlineDisplay } from "./airline-display.js";
 import { hasFlightDetail, humanOptionLine, renderFlightDetailPanel } from "./dashboard-flight-components.js";
 import { refreshSpendSummaryText, renderRefreshDecisionCostCheck } from "./dashboard-refresh-ux.js";
 import { metricSignal, signal } from "./dashboard-signals.js";
+import { renderWatchAlerts } from "./dashboard-watch-alerts.js";
+import { bestChoiceRationale } from "./decision-copy.js";
 
 // Page-level renderers for the generated plan dashboard. Shared flight cards, drawers,
 // signals, and shell styles live in dedicated modules to keep page assembly readable.
@@ -31,6 +33,7 @@ export function createPageRenderers(helpers) {
       <h2>Current Read</h2>
       ${renderPlanRead({ analysis, current, trip })}
     </section>
+    ${renderWatchAlerts(analysis.watchAlerts)}
     <section>
       <h2>Best Decision Right Now</h2>
       ${renderDecisionSummary(analysis)}
@@ -44,7 +47,7 @@ export function createPageRenderers(helpers) {
       <h2>Next Refresh</h2>
       <div class="grid">
         <div class="card"><div class="label">Next ${escapeHtml(refreshPlan?.mode ?? "light")} refresh</div><div class="title">${refreshPlan ? `${refreshPlan.selectedCallCount ?? refreshPlan.calls?.length ?? 0} selected searches` : "Refresh check not loaded"}</div><p class="small">${escapeHtml(refreshSpendSummaryText(refreshPlan))}</p></div>
-        <div class="card"><div class="label">Last checked</div><div class="title">${current ? formatDateTime(current.meta.createdAt) : "No snapshot"}</div><p class="small">${current ? `${current.meta.refresh?.mode ?? "import"} run · ${current.meta.refresh?.fliCallCount ?? current.meta.refresh?.liveCallCount ?? 0} selected FLI searches. Previous: ${history[1] ? formatDateTime(history[1].createdAt) : "none"}.` : "Run or import a snapshot before using price movement."}</p></div>
+        <div class="card"><div class="label">Last checked</div><div class="title">${current ? formatDateTime(current.meta.createdAt) : "No snapshot"}</div><p class="small">${current ? `${current.meta.refresh?.mode ?? "import"} run · ${current.meta.refresh?.fliCallCount ?? current.meta.refresh?.liveCallCount ?? 0} selected local searches. Previous: ${history[1] ? formatDateTime(history[1].createdAt) : "none"}.` : "Run or import a snapshot before using price movement."}</p></div>
       </div>
     </section>`;
   }
@@ -58,28 +61,41 @@ export function createPageRenderers(helpers) {
     const cheapest = analysis.cheapest && analysis.cheapest !== best ? analysis.cheapest : null;
     const fastest = analysis.fastest && analysis.fastest !== best ? analysis.fastest : null;
     const pieces = [];
-    pieces.push(`<div class="plan-read-line">${bestChoiceRead(best, cheapest, trip)}</div>`);
+    pieces.push(`<div class="plan-read-line">${bestChoiceRead(best, cheapest, fastest, trip)}</div>`);
     if (budget && budget.savingsVsBest > 0) {
-      pieces.push(`<div class="plan-read-line">If saving money matters more than simplicity, the Bangkok-first path is the one to investigate. It comes out around ${metricSignal(`$${money(budget.total)}`, "good")} after the Bangkok flight and hotel estimate, roughly ${metricSignal(`$${money(budget.savingsVsBest)} less`, "good")} than the cleaner Chiang Mai-start choice.</div>`);
+      pieces.push(`<div class="plan-read-line">If saving money matters more than simplicity, also check starting from ${escapeHtml(budget.alternateLabel)}. It comes out around ${metricSignal(`$${money(budget.total)}`, "good")} after the ${escapeHtml(budget.originLabel)} to ${escapeHtml(budget.alternateLabel)} flight and hotel estimate, roughly ${metricSignal(`$${money(budget.savingsVsBest)} less`, "good")} than the cleaner routes that start from ${escapeHtml(budget.originLabel)}.</div>`);
     }
     if (cheapest) {
       pieces.push(`<div class="plan-read-line">${cheapestRead(cheapest, best)}</div>`);
     }
     if (fastest) {
-      pieces.push(`<div class="plan-read-line">The fastest option is ${readFlightDetailLink(fastest)} at ${metricSignal(formatMinutes(fastest.durationMinutes), "info")}, but I would only choose it if the higher price and connection timing feel acceptable.</div>`);
+      pieces.push(`<div class="plan-read-line">The fastest option is ${readFlightDetailLink(fastest)}&nbsp;at&nbsp;${metricSignal(formatMinutes(fastest.durationMinutes), "info")}, but I would only choose it if the higher price and connection timing feel acceptable.</div>`);
     }
     return `<div class="plan-read-panel">${pieces.slice(0, 3).join("")}</div>`;
   }
 
-  function bestChoiceRead(best, cheapest, trip) {
+  function bestChoiceRead(best, cheapest, fastest, trip) {
+    if (best.kind === "composed-round-trip") return roundTripBestChoiceRead(best, trip);
     const label = optionDateLabel(best);
     const airline = airlineDisplay(best);
     const airlineText = airline ? `${escapeHtml(airline)} from ` : "";
     const route = airportRouteText(best);
-    const budget = trip?.budget?.hardMax ? `, and comfortably under your <strong>$${money(trip.budget.hardMax)}</strong> target` : "";
-    const nonstop = isNonstop(best) ? "nonstop, " : "";
-    const cheapestNote = cheapest && cheapest !== best ? " It is not the absolute cheapest flight, but" : " It is the strongest starting point because";
-    return `The cleanest option right now is ${readFlightDetailLink(best, label)}. ${airlineText}<strong>${route}</strong> for ${metricSignal(`$${money(best.price)}`, "info")}, taking about ${metricSignal(formatMinutes(best.durationMinutes), "info")}.${cheapestNote} it is ${nonstop}fast${budget}.`;
+    const budget = trip?.budget?.hardMax
+      ? ` It is also comfortably under your <strong>$${money(trip.budget.hardMax)}</strong> target.`
+      : "";
+    const rationale = bestChoiceRationale({ best, cheapest, fastest });
+    return `The cleanest option right now is ${readFlightDetailLink(best, label, ".")} ${airlineText}<strong>${route}</strong> for ${metricSignal(`$${money(best.price)}`, "info")}, taking about ${metricSignal(formatMinutes(best.durationMinutes), "info")}. ${escapeHtml(rationale)}${budget}`;
+  }
+
+  function roundTripBestChoiceRead(best, trip) {
+    const outbound = best.outbound;
+    const returning = best.returnFlight;
+    const outboundAirline = airlineDisplay(outbound);
+    const returnAirline = airlineDisplay(returning);
+    const budget = trip?.budget?.hardMax
+      ? `, under your <strong>$${money(trip.budget.hardMax)}</strong> target`
+      : "";
+    return `The cleanest round-trip combination right now is ${readFlightDetailLink(best, null, ".")} Fly ${escapeHtml(outboundAirline || "the outbound flight")} from <strong>${escapeHtml(outbound.departureAirport)} to ${escapeHtml(outbound.arrivalAirport)}</strong> on ${metricSignal(formatHumanDate(outbound.departureTime?.slice(0, 10)), "info")}, then return ${escapeHtml(returnAirline || "on the return flight")} from <strong>${escapeHtml(returning.departureAirport)} to ${escapeHtml(returning.arrivalAirport)}</strong> on ${metricSignal(formatHumanDate(returning.departureTime?.slice(0, 10)), "info")}. The two one-way fares total ${metricSignal(`$${money(best.price)}`, "info")} and ${metricSignal(`${formatMinutes(best.durationMinutes)} of scheduled flight time`, "info")}${budget}. They are separate tickets, so compare both ticket rules before booking.`;
   }
 
   function cheapestRead(cheapest, best) {
@@ -91,16 +107,12 @@ export function createPageRenderers(helpers) {
     const savings = priceDiff > 0 ? ` It saves ${metricSignal(`$${money(priceDiff)}`, "good")}` : "";
     const extraTime = timeDiff > 0 ? ` and adds about ${metricSignal(proseDuration(timeDiff), "warn")}` : timeDiff === 0 ? " with the same travel time" : "";
     const tradeoff = savings || extraTime ? `${savings}${extraTime} versus the cleaner pick.` : " It is worth checking if the departure time works better for you.";
-    return `If you want the lowest fare, also check ${readFlightDetailLink(cheapest, label)}. ${airlineText}${metricSignal(`$${money(cheapest.price)}`, "good")} and takes about ${metricSignal(formatMinutes(cheapest.durationMinutes), "info")}.${tradeoff}`;
+    return `If you want the lowest fare, also check ${readFlightDetailLink(cheapest, label, ".")} ${airlineText}${metricSignal(`$${money(cheapest.price)}`, "good")} and takes about ${metricSignal(formatMinutes(cheapest.durationMinutes), "info")}.${tradeoff}`;
   }
 
   function optionDateLabel(option) {
     const date = formatHumanDate(option.departureTime?.slice(0, 10));
     return date || humanOptionLine(option);
-  }
-
-  function isNonstop(option) {
-    return (option.stops ?? option.layovers?.length ?? 0) === 0;
   }
 
   function airportRouteText(option) {
@@ -127,8 +139,8 @@ export function createPageRenderers(helpers) {
     return formatMinutes(minutes);
   }
 
-  function readFlightDetailLink(option, text = null) {
-    const label = escapeHtml(text ?? humanOptionLine(option));
+  function readFlightDetailLink(option, text = null, suffix = "") {
+    const label = `${escapeHtml(text ?? humanOptionLine(option))}${escapeHtml(suffix)}`;
     if (!hasFlightDetail(option)) return `<strong>${label}</strong>`;
     return `<details class="side-drawer inline-read-drawer"><summary><strong>${label}</strong></summary><div class="drawer-panel">${renderFlightDetailPanel(option, "Flight detail")}</div></details>`;
   }
@@ -153,10 +165,11 @@ export function createPageRenderers(helpers) {
 
   function renderRoutesPage({ plan, analysis, refreshPlan }) {
     const analyzedRouteGroups = groupAnalyzedOptions(analysis.options);
+    const priceHistory = new Map((analysis.priceHistory?.routes ?? []).map((route) => [route.routeIdeaId, route]));
     return `
     <section>
       <h2>Route Evidence</h2>
-      ${plan.routeIdeas.map((route, index) => renderRoute(route, analyzedRouteGroups.get(route.id) ?? [], refreshPlan, index === 0, plan.routeIdeas.length === 1)).join("")}
+      ${plan.routeIdeas.map((route, index) => renderRoute(route, analyzedRouteGroups.get(route.id) ?? [], refreshPlan, index === 0, plan.routeIdeas.length === 1, priceHistory.get(route.id))).join("")}
     </section>`;
   }
 

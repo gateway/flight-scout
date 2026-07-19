@@ -12,7 +12,7 @@ export function parseTripIntent(text) {
       alternateStarts: [],
       destination: intent.destination,
       departureWindow: intent.departureWindow,
-      returnWindow: null,
+      returnWindow: intent.returnWindow,
       tripType: intent.tripType,
       budget: intent.budget,
       priorities: {
@@ -30,7 +30,7 @@ export function parseTripIntent(text) {
       assumptions: [
         ...intent.assumptions,
         "No live provider scan has been run from this intent.",
-        "Review the generated trip spec before running local FLI searches.",
+        "Review the generated trip spec before running local searches.",
         "Prices must be verified before booking."
       ]
     }

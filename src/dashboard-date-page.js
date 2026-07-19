@@ -2,6 +2,8 @@ import { worthIt } from "./decision-analysis.js";
 import { escapeAttr, escapeHtml, formatHumanDate, formatMinutes, money } from "./html-utils.js";
 import { connectionPill, flightActionLinks, hasFlightDetail, optionDate, optionHeadline, optionRouteLine, renderCardHead, renderFlightDetailPanel, renderPainBreakdown } from "./dashboard-flight-components.js";
 import { metricSignal, signal, signalizeText } from "./dashboard-signals.js";
+import { minBy } from "./collections.js";
+import { cheapestCompleteOptionsByDate } from "./date-option-selection.js";
 
 // Date comparison components answer date-window questions without duplicating route-card layouts.
 export function renderPriceGraph(plan, analysis) {
@@ -49,14 +51,13 @@ export function renderDateOpportunities(analysis) {
 }
 
 function priceGraphRow(route, options) {
-  const byDate = new Map();
-  for (const option of options) {
-    const date = optionDate(option);
-    if (!date || !Number.isFinite(option.price)) continue;
-    const current = byDate.get(date);
-    if (!current || option.humanScore < current.humanScore) byDate.set(date, option);
-  }
-  const points = [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, option]) => ({ date, price: option.price, duration: option.durationMinutes, option }));
+  const byDate = cheapestCompleteOptionsByDate(options);
+  const points = [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, option]) => ({
+    date,
+    price: option.price ?? option.totalCost,
+    duration: option.durationMinutes,
+    option
+  }));
   if (!points.length) return null;
   const best = points.reduce((winner, point) => point.price < winner.price ? point : winner, points[0]);
   return { route, points, best };
@@ -200,10 +201,6 @@ function whyBalancedBeatsCheapest(balanced, cheapest) {
   if (cheapest.confidence?.level === "Low") reasons.push("lower confidence");
   if (!reasons.length) reasons.push("worse overall mix of price, time, stops, and connection risk");
   return `The balanced pick wins because the cheaper option has ${reasons.slice(0, 3).join(", ")}.`;
-}
-
-function minBy(items, score) {
-  return items.reduce((best, item) => (score(item) < score(best) ? item : best), items[0] ?? null);
 }
 
 function formatShortDate(value) {

@@ -1,6 +1,8 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { jsonReadWarning, readJsonFile } from "./json-files.js";
+import { minBy } from "./collections.js";
 
 export function snapshotRoot(planDir) {
   return path.join(planDir, "snapshots");
@@ -17,15 +19,23 @@ export async function listSnapshots(planDir) {
 }
 
 export async function loadSnapshot(snapshotDir) {
-  const meta = JSON.parse(await readFile(path.join(snapshotDir, "snapshot.json"), "utf8"));
-  const rankedFlights = JSON.parse(await readFile(path.join(snapshotDir, "ranked.json"), "utf8"));
+  const meta = await readJsonFile(path.join(snapshotDir, "snapshot.json"));
+  const rankedFlights = await readJsonFile(path.join(snapshotDir, "ranked.json"));
   return { snapshotDir, meta, rankedFlights };
 }
 
-export async function latestSnapshots(planDir, count = 2) {
+export async function latestSnapshots(planDir, count = 2, { onWarning = () => {} } = {}) {
   const dirs = await listSnapshots(planDir);
-  const latest = dirs.slice(-count).reverse();
-  return Promise.all(latest.map((dir) => loadSnapshot(dir)));
+  const snapshots = [];
+  for (const snapshotDir of dirs.toReversed()) {
+    if (snapshots.length >= count) break;
+    try {
+      snapshots.push(await loadSnapshot(snapshotDir));
+    } catch (error) {
+      onWarning(jsonReadWarning(error, { code: "snapshot-read-failed", snapshotDir }));
+    }
+  }
+  return snapshots;
 }
 
 export async function createSnapshot({ planDir, plan, refreshPlan, rankedFlights, source = "cache", notes = [] }) {
@@ -42,7 +52,6 @@ export async function createSnapshot({ planDir, plan, refreshPlan, rankedFlights
           mode: refreshPlan.mode,
           selectedCallCount: refreshPlan.selectedCallCount,
           fliCallCount: refreshPlan.fliCallCount,
-          liveCallCount: refreshPlan.liveCallCount,
           cacheHitCount: refreshPlan.cacheHitCount,
           warnings: refreshPlan.warnings
         }
@@ -58,7 +67,7 @@ export async function createSnapshot({ planDir, plan, refreshPlan, rankedFlights
 }
 
 export async function importRankedSnapshot({ planDir, plan, rankedPath, refreshPlan = null }) {
-  const rankedFlights = JSON.parse(await readFile(rankedPath, "utf8"));
+  const rankedFlights = await readJsonFile(rankedPath);
   return createSnapshot({
     planDir,
     plan,
@@ -100,10 +109,6 @@ function summarizeFlight(flight) {
     airline: flight.airline,
     googleFlightsUrl: flight.googleFlightsUrl
   };
-}
-
-function minBy(items, score) {
-  return items.reduce((best, item) => (score(item) < score(best) ? item : best), items[0] ?? null);
 }
 
 function timestampId(date) {

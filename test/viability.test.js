@@ -38,3 +38,72 @@ test("summarizeViability counts recommendation, watch, hidden, and reject pools"
   assert.equal(summary.hardReject, 1);
   assert.equal(summary.hiddenByPreference, 1);
 });
+
+test("classifyCandidate asks to verify an unknown layover duration", () => {
+  const result = classifyCandidate({
+    price: 900,
+    durationMinutes: 20 * 60,
+    stops: 1,
+    layovers: [{ id: "TPE", duration: null }],
+    tripComplete: true,
+    destinationComplete: true
+  }, rules);
+
+  assert.equal(result.status, VIABILITY.WATCH);
+  assert.ok(result.reasons.some((reason) => reason.includes("TPE") && reason.includes("verification")));
+  assert.ok(!result.reasons.some((reason) => reason.includes("under 90m")));
+});
+
+test("classifyCandidate uses explicit connection geography for arbitrary airports", () => {
+  const result = classifyCandidate({
+    price: 900,
+    durationMinutes: 20 * 60,
+    stops: 1,
+    layovers: [{ id: "YUL", duration: 120 }],
+    tripComplete: true,
+    destinationComplete: true
+  }, {
+    ...rules,
+    connectionTypesByAirport: { YUL: "international-to-domestic" }
+  });
+
+  assert.equal(result.status, VIABILITY.WATCH);
+  assert.ok(result.reasons.includes("YUL under 180m"));
+});
+
+test("classifyCandidate keeps unknown connection geography on the watch list", () => {
+  const result = classifyCandidate({
+    price: 900,
+    durationMinutes: 20 * 60,
+    stops: 1,
+    layovers: [{ id: "YUL", duration: 120 }],
+    tripComplete: true,
+    destinationComplete: true
+  }, rules);
+
+  assert.equal(result.status, VIABILITY.WATCH);
+  assert.ok(result.reasons.includes("YUL connection type needs verification"));
+});
+
+test("viabilityRulesFrom preserves trip connection geography metadata", () => {
+  const derivedRules = viabilityRulesFrom({
+    trip: {
+      rules: {
+        preferredDomesticConnectionMinutes: 90,
+        preferredInternationalToDomesticConnectionMinutes: 180,
+        connectionTypesByAirport: { YUL: "international-to-domestic" }
+      }
+    }
+  });
+  const result = classifyCandidate({
+    price: 900,
+    durationMinutes: 20 * 60,
+    stops: 1,
+    layovers: [{ id: "YUL", duration: 120 }],
+    tripComplete: true,
+    destinationComplete: true
+  }, derivedRules);
+
+  assert.equal(result.status, VIABILITY.WATCH);
+  assert.ok(result.reasons.includes("YUL under 180m"));
+});

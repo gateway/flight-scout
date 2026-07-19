@@ -44,7 +44,7 @@ Compare flying from City A versus starting from a nearby larger airport to get t
 Expected behavior:
 
 - create route ideas for both starting points
-- estimate extra Bangkok travel and hotel assumptions
+- estimate extra gateway travel and hotel assumptions
 - show whether the cheaper start is actually worth the hassle
 - keep both choices visible in the dashboard
 
@@ -69,7 +69,7 @@ Find a one-way trip from City A to City B around August 1, plus or minus 3 days.
 Expected behavior:
 
 - create a direct-to-final route idea
-- create Tokyo stopover route ideas
+- create stopover route ideas for the requested city
 - compare the stopover as two travel days, not one giant elapsed trip
 - show first leg, stayover, second leg, total cost, and tradeoffs
 
@@ -90,7 +90,7 @@ Expected behavior:
 If the prompt is unclear, the skill should ask two or three direct questions, such as:
 
 - Which airport or city did you mean?
-- Is this one-way, round-trip, or a multi-city style trip?
+- Is this one-way or round trip? For a round trip, what return date or return window should I use?
 - What is the maximum travel time or maximum budget?
 
 It should show the selected searches and wait for the user to confirm the scan.

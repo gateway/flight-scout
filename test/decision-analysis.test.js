@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analyzeDecision, confidenceLabel, travelPainBreakdown, worthIt } from "../src/decision-analysis.js";
+import { analyzeDecision, confidenceLabel, normalizeOption, travelPainBreakdown, worthIt } from "../src/decision-analysis.js";
+import { connectionPill } from "../src/dashboard-flight-components.js";
 
 function flight(overrides = {}) {
   return {
@@ -38,6 +39,29 @@ test("worth-it math explains cheaper longer and faster costlier tradeoffs", () =
   });
   assert.equal(worthIt(fast, best).type, "faster-but-costlier");
   assert.equal(worthIt(fast, best).sentence, "Saves 3h 0m, but costs $180 more. That is about $60/hour saved.");
+});
+
+test("worth-it math explains why a cheaper and faster challenger can still lose", () => {
+  const best = {
+    price: 1000,
+    durationMinutes: 720,
+    connectionRisk: { level: "comfortable", shortest: { id: "AMS", duration: 200 } },
+    confidence: { level: "High" },
+    stops: 1
+  };
+  const challenger = {
+    price: 800,
+    durationMinutes: 600,
+    connectionRisk: { level: "tight", shortest: { id: "ARN", duration: 65 } },
+    confidence: { level: "Low" },
+    stops: 1
+  };
+
+  assert.deepEqual(worthIt(challenger, best), {
+    type: "cheaper-and-faster",
+    verdict: "check the connection tradeoff",
+    sentence: "Saves $200 and 2h 0m of travel time, but depends on a tight 1h 5m connection at ARN and has lower confidence."
+  });
 });
 
 test("travel pain breakdown separates air, layover, and stopover days", () => {
@@ -100,6 +124,20 @@ test("confidence labels distinguish high, low, and needs-data options", () => {
     refreshBySearchId: new Map([["stale", { cache: { fresh: false } }]])
   });
   assert.equal(stale.level, "Medium");
+});
+
+test("decision summaries keep an unknown connection out of tight-risk signals", () => {
+  const option = normalizeOption({
+    option: flight({ layovers: [{ id: "BBB", name: "Connection", duration: null }] }),
+    route: { id: "primary", label: "Primary", type: "direct-to-final" }
+  });
+  const pill = connectionPill(option);
+
+  assert.equal(option.connectionRisk.level, "unknown");
+  assert.match(option.connectionRisk.label, /verif/i);
+  assert.ok(option.confidence.reasons.some((reason) => /connection.*verif/i.test(reason)));
+  assert.doesNotMatch(pill, /tight/i);
+  assert.match(pill, /time unknown/i);
 });
 
 test("decision analysis produces generic best choice, date opportunities, and refresh guidance", () => {

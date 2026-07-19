@@ -53,7 +53,7 @@ async function writeEnv() {
   const value = `FLI_PYTHON=${venvPython}`;
   if (!await exists(envPath)) {
     await writeFile(envPath, [
-      "# Local settings for Flight Research Agent.",
+      "# Local settings for Flight Scout.",
       "# This file is ignored by git.",
       value,
       ""
@@ -75,7 +75,7 @@ if (!await exists(venvPython)) {
   run(python, ["-m", "venv", ".venv"]);
 }
 
-console.log("Installing direct Python dependency: flights==0.9.0...");
+console.log("Installing the pinned local flight-search runtime...");
 run(venvPython, ["-m", "pip", "install", "-r", requirements]);
 
 await writeEnv();

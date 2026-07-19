@@ -151,6 +151,8 @@ h1 {
   font-size: clamp(40px, 4vw, 54px);
   letter-spacing: 0;
   line-height: 0.98;
+  overflow-wrap: break-word;
+  word-break: normal;
   text-wrap: balance;
 }
 .sub {

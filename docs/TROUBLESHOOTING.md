@@ -55,7 +55,7 @@ The default local search path should use FLI.
 
 ## Prices Are In The Wrong Currency
 
-The app requests USD from both providers. If a provider returns another currency, the comparison layer ignores mixed-currency price movement instead of treating it as a real fare change.
+The app requests USD from the provider. If a result uses another currency, the comparison layer ignores mixed-currency price movement instead of treating it as a real fare change.
 
 For local scans, confirm the provider input includes:
 
@@ -78,7 +78,7 @@ Generated links are research shortcuts, not booking guarantees. Before buying, v
 
 ## Provider Search Fails
 
-If source setup, rate-limit, or account errors appear, use the normal FLI path and avoid broad searches until the issue is clear:
+If source setup or rate-limit errors appear, use the normal FLI path and avoid broad searches until the issue is clear:
 
 ```bash
 npm run plan:refresh -- plans/<plan-id>/plan.json --mode standard --live

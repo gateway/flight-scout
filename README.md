@@ -1,8 +1,10 @@
-# Flight Research Agent
+# Flight Scout
+
+[![CI](https://github.com/gateway/flight-scout/actions/workflows/ci.yml/badge.svg)](https://github.com/gateway/flight-scout/actions/workflows/ci.yml)
 
 Find better flights without turning travel planning into a browser-tab maze.
 
-Flight Research Agent turns a rough travel idea into a saved local flight plan. You can describe flexible dates, rough budget, airports you are unsure about, stopovers you might accept, and travel days you want to avoid. The app searches the plan, saves snapshots, and builds dashboards that explain the best options in plain language.
+Flight Scout turns a rough travel idea into a saved local flight plan. You can describe flexible dates, rough budget, airports you are unsure about, stopovers you might accept, and travel days you want to avoid. The app searches the plan, saves snapshots, and builds dashboards that explain the best options in plain language.
 
 It is built for personal flight research: compare dates, routes, prices, total travel time, and connection risk before you verify and book with Google Flights or an airline.
 
@@ -11,6 +13,7 @@ It is built for personal flight research: compare dates, routes, prices, total t
 - Searches flexible date windows, such as August 1 plus or minus 3 days.
 - Compares the best balance, cheapest, fastest, and risky-but-interesting options.
 - Tracks refreshes so you can see what got cheaper, higher, or newly available.
+- Shows when a refreshed flight meets a saved price or total-time target.
 - Shows flight detail sidecards with legs, layovers, timing, and Google Flights links.
 - Keeps plans, caches, snapshots, and generated dashboards on your machine.
 
@@ -56,15 +59,19 @@ http://<your-computer-ip>:8765/
 
 The normal `npm run serve` command only listens on `127.0.0.1`, which means the dashboard is available from the same machine only.
 
-`npm run setup` creates the project virtual environment for you, installs the flight search dependency, and writes the local `.env` file. You do not need to manually create a Python environment.
+`npm run setup` creates the project virtual environment for you, installs the flight-search runtime, and writes the local `.env` file. You do not need to manually create a Python environment.
 
-The app uses one direct Python flight-search dependency:
+The pinned Python runtime packages are:
 
 ```text
 flights==0.9.0
+click==8.3.1
 ```
 
 The search layer requests USD results with US English locale settings so prices stay consistent even when you are traveling.
+If you omit the year, the next future occurrence of that date is used. Flight budgets are entered in USD; another currency prompts for a USD budget instead of being silently converted.
+
+Provider searches stay atomic and one-way. Flight Scout can compare stopovers, alternate starts, and round trips by composing those one-way results locally. A round trip is shown as separately booked outbound and return tickets, with both booking links and independent ticket-rule warnings; it is never presented as one protected provider-native itinerary.
 
 ## Use It With An Assistant
 
@@ -102,9 +109,11 @@ Good starter prompts:
 
 > Use `$flight-plan-riffer`. Find Chiang Mai to Tokyo around August 1, plus or minus two days. Check both Tokyo airports, keep it under $800 if possible, and prefer under 10 hours.
 
-> Use `$flight-plan-riffer`. Refresh my saved flight plan and tell me what changed since the last scan.
+> Use `$flight-plan-riffer`. Refresh all active flight plans with the latest data and tell me what changed.
 
 The skill is designed to ask short clarifying questions when something important is missing. When the request is clear, it repeats the plan back first so you can confirm the airports, dates, route ideas, and filters before it searches.
+
+When you ask for the latest prices, current prices, or a booking-day read, the skill uses the fresh local refresh path and then summarizes the markdown lowdown instead of making you inspect every route page.
 
 The dashboard app itself is local and command-driven, so another assistant or workflow can use the same plan files and commands later.
 
@@ -133,7 +142,12 @@ This repo should not include your personal trip data, API keys, local environmen
 - [Command Reference](docs/COMMAND_REFERENCE.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Security And Privacy](docs/SECURITY_AND_PRIVACY.md)
+- [Airport Data And Attribution](docs/AIRPORT_DATA.md)
 
 ## Important Limit
 
-Flight Research Agent is a research tool, not a booking engine. Always verify the final fare, baggage rules, separate-ticket risk, and booking details before buying.
+Flight Scout is a research tool, not a booking engine. Always verify the final fare, baggage rules, separate-ticket risk, and booking details before buying.
+
+## License
+
+[MIT](LICENSE)

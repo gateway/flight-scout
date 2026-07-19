@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "source": "OurAirports",
+  "license": "Public Domain",
+  "sourcePage": "https://ourairports.com/data/",
+  "sourceUrls": {
+    "airports": "https://davidmegginson.github.io/ourairports-data/airports.csv",
+    "countries": "https://davidmegginson.github.io/ourairports-data/countries.csv",
+    "regions": "https://davidmegginson.github.io/ourairports-data/regions.csv"
+  },
+  "generatedAt": "2026-07-17T00:00:00.000Z",
+  "airportCount": 4045,
+  "sourceSha256": {
+    "airports": "911e904793b1ebed1e5105748a9ca5e9b77fa605ed6fbda6f80b0c8975d892ce",
+    "countries": "2a9dbee691125b0cdb8ceb5fe227c48c903f99c488963b8e53e2ab366521c639",
+    "regions": "4989f0c59028cfe1a14cd80d83d9b0fb173dee78d49830e96ff532962d46b55f"
+  },
+  "dataSha256": "f2683b08ad9782b87f80dd44ecd2f3038d44d8910ecfc6d89e64ae4b1389daab"
+}

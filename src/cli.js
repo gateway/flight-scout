@@ -8,14 +8,15 @@ import {
   runPlanListDashboard,
   runPlanSnapshots
 } from "./commands/plan-dashboard-command.js";
-import { runPlanRefresh, runPlanRefreshPlan } from "./commands/plan-refresh-command.js";
+import { runPlanRefresh, runPlanRefreshPlan, runPlanRefreshSummary } from "./commands/plan-refresh-command.js";
+import { runPlanScheduledRefresh } from "./commands/scheduled-refresh-command.js";
+import { runCachePrune } from "./commands/cache-prune-command.js";
 
 // Small command router for saved-plan workflows. Keep individual command behavior in
 // `src/commands/*` so this file stays as orchestration only.
 
-const { command, tripPath, flags } = parseArgs(process.argv.slice(2));
-
 try {
+  const { command, tripPath, flags } = parseArgs(process.argv.slice(2));
   await loadDotEnv();
   if (command === "plan:new") {
     await runPlanNew(flags.positionals, flags);
@@ -23,6 +24,10 @@ try {
     await runPlanRefreshPlan(tripPath, flags);
   } else if (command === "plan:refresh") {
     await runPlanRefresh(tripPath, flags);
+  } else if (command === "plan:refresh-summary") {
+    await runPlanRefreshSummary(flags);
+  } else if (command === "plan:refresh-scheduled") {
+    await runPlanScheduledRefresh(flags);
   } else if (command === "plan:compare") {
     await runPlanCompare(tripPath);
   } else if (command === "plan:snapshots") {
@@ -33,6 +38,8 @@ try {
     await runPlanArchive(tripPath, flags);
   } else if (command === "plan:list-dashboard") {
     await runPlanListDashboard(flags);
+  } else if (command === "cache:prune") {
+    await runCachePrune(flags);
   } else if (command === "intent") {
     await runIntent(process.argv.slice(3), flags);
   } else {

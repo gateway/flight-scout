@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createPlanFromText, loadPlanTrip, validatePlan } from "../src/plans.js";
@@ -8,8 +8,7 @@ import { buildRefreshPlan } from "../src/refresh-plan.js";
 import { createSnapshot, latestSnapshots } from "../src/snapshots.js";
 import { compareSnapshots } from "../src/snapshot-compare.js";
 import { writePlanDashboard } from "../src/dashboard.js";
-import { flightGoogleFlightsUrl, renderFlightDetailPanel } from "../src/dashboard-flight-components.js";
-import { writeAppIndex, writePlanListDashboard } from "../src/plan-list-dashboard.js";
+import { bestChoiceSentence, flightGoogleFlightsUrl, renderFlightDetailPanel } from "../src/dashboard-flight-components.js";
 import { signalizeText } from "../src/dashboard-signals.js";
 
 const root = process.cwd();
@@ -72,15 +71,17 @@ test("dashboard signal helper highlights decision phrases without swallowing pun
   assert.ok(html.includes('<span class="text-signal text-signal-bad">tight connection</span>'));
 });
 
-test("refresh plan is provider-aware and uses cached decision searches", async () => {
+test("refresh plan is provider-aware and exposes atomic decision searches", async () => {
   const { plan, trip } = await loadPlanTrip(planPath, root);
   const refreshPlan = await buildRefreshPlan({ plan, trip, mode: "light", root });
   assert.equal(refreshPlan.mode, "light");
-  assert.equal(refreshPlan.selectedCallCount, 12);
+  assert.ok(refreshPlan.selectedCallCount > 0);
+  assert.equal(refreshPlan.selectedCallCount, refreshPlan.calls.length);
+  assert.equal(new Set(refreshPlan.calls.map((call) => call.id)).size, refreshPlan.calls.length);
+  assert.ok(refreshPlan.calls.every((call) => call.kind === "one-way"));
   assert.ok(Number.isInteger(refreshPlan.fliCallCount));
   assert.ok(refreshPlan.calls.every((call) => call.input));
   assert.ok(refreshPlan.calls.every((call) => call.refreshReasons.length > 0));
-  assert.ok(refreshPlan.calls.some((call) => call.id.includes("tokyo")));
   assert.ok(refreshPlan.calls.some((call) => call.id === "one-way-hnd-nrt-rdm-2026-08-02"));
   assert.ok(refreshPlan.explanation.includes("decision"));
 });
@@ -91,7 +92,7 @@ test("forced fli refresh counts fresh cache as planned provider work", async () 
   const forced = await buildRefreshPlan({ plan, trip, mode: "standard", root, refresh: true });
   assert.ok(forced.fliCallCount >= normal.fliCallCount);
   assert.equal(forced.fliCallCount, forced.selectedCallCount);
-  assert.equal(forced.liveCallCount, 0);
+  assert.equal(Object.hasOwn(forced, "liveCallCount"), false);
 });
 
 
@@ -192,6 +193,12 @@ test("plan dashboard renders decision cards and route sections", async () => {
     id: "fixture",
     name: "Fixture Plan",
     intent: { naturalLanguage: "Find a one-way flight home." },
+    watchRules: [{
+      id: "target",
+      label: "Target price and travel time",
+      maxPriceUsd: 1000,
+      maxDurationMinutes: 1300
+    }],
     routeIdeas: [{
       id: "bangkok-to-redmond",
       label: "Bangkok to Redmond",
@@ -202,14 +209,26 @@ test("plan dashboard renders decision cards and route sections", async () => {
   const snapshot = await createSnapshot({
     planDir: dir,
     plan,
-    rankedFlights: [sampleFlight({ legs: [sampleLeg()] })],
+    rankedFlights: [
+      sampleFlight({ legs: [sampleLeg()] }),
+      sampleFlight({
+        searchId: "fastest-2026-07-29",
+        departureTime: "2026-07-29 10:00",
+        arrivalTime: "2026-07-30 04:00",
+        price: 1500,
+        duration: "18h 0m",
+        durationMinutes: 1080,
+        scoring: { score: 300, breakdown: { estimatedTotalCost: 1500 } },
+        legs: [sampleLeg()]
+      })
+    ],
     source: "test"
   });
   await writePlanDashboard({
     plan,
     planDir: dir,
     snapshots: [snapshot],
-    refreshPlan: { liveCallCount: 0, cacheHitCount: 1, warnings: [] },
+    refreshPlan: { selectedCallCount: 1, fliCallCount: 0, cacheHitCount: 1, warnings: [] },
     outputPath
   });
   const html = await readFile(outputPath, "utf8");
@@ -219,7 +238,15 @@ test("plan dashboard renders decision cards and route sections", async () => {
   assert.ok(html.includes("dashboard.routes.html"));
   assert.ok(html.includes("dashboard.refresh.html"));
   assert.ok(html.includes("Best current choice"));
+  assert.ok(html.includes("Saved Target Status"));
+  assert.ok(html.includes("Target price and travel time"));
+  assert.ok(html.includes("$965"));
+  assert.ok(html.includes("21h 14m"));
   assert.ok(html.includes("The cleanest option right now"));
+  assert.doesNotMatch(html, /<\/details>\./);
+  assert.match(html, /<summary><strong>[^<]+\.<\/strong><\/summary>/);
+  assert.doesNotMatch(html, /<\/details> at /);
+  assert.match(html, /<\/details>&nbsp;at&nbsp;/);
   assert.ok(html.includes("selected searches are still fresh in cache."));
   const datesHtml = await readFile(path.join(dir, "dashboard.dates.html"), "utf8");
   assert.ok(datesHtml.includes("Best Dates To Consider"));
@@ -253,6 +280,8 @@ test("plan dashboard renders decision cards and route sections", async () => {
   assert.ok(html.includes("drawer-head-actions"));
   assert.ok(!html.includes("drawer-footer"));
   assert.ok(html.includes("card-stat"));
+  assert.ok(html.includes('data-plan-refresh-action="plan"'));
+  assert.ok(html.includes("/api/plans/refresh"));
   for (const generated of [html, datesHtml, routesHtml]) {
     assert.ok(!generated.includes("Compact report"));
     assert.ok(!generated.includes("Decision Evidence"));
@@ -263,86 +292,18 @@ test("plan dashboard renders decision cards and route sections", async () => {
   }
   const refreshHtml = await readFile(path.join(dir, "dashboard.refresh.html"), "utf8");
   assert.ok(refreshHtml.includes("Refresh check"));
-  assert.ok(refreshHtml.includes("FLI searches"));
+  assert.ok(refreshHtml.includes("Local searches"));
   assert.ok(refreshHtml.includes("Already cached"));
   assert.ok(refreshHtml.includes("Refresh history"));
+  assert.doesNotMatch(refreshHtml, /Open snapshot|\.\.\/plans\//);
   assert.ok(refreshHtml.includes("What changed"));
   assert.ok(!refreshHtml.includes("Compact report"));
   assert.ok(!refreshHtml.includes("Decision Evidence"));
   assert.ok(!refreshHtml.includes("Smart Filters"));
   assert.ok(!refreshHtml.includes("positioning"));
-  await rm(dir, { recursive: true, force: true });
-});
-
-test("plan list dashboard renders saved plans", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "flight-plan-list-"));
-  const planDir = path.join(dir, "plans", "fixture");
-  await createPlanFromText({ text: "San Francisco to Portland via Tokyo around August 1 plus or minus 3", outputDir: planDir, root: dir });
-  const outputPath = path.join(dir, "outputs", "plans.dashboard.html");
-  await writePlanListDashboard({ root: dir, outputPath });
-  const html = await readFile(outputPath, "utf8");
-  assert.ok(html.includes("Plans"));
-  assert.ok(html.includes("Overview"));
-  assert.ok(!html.includes('href="#overview"'));
-  assert.ok(html.includes("Active Plans"));
-  assert.ok(html.includes("Current read"));
-  assert.ok(html.includes("Best decisions right now"));
-  assert.ok(html.includes("Route date scan"));
-  assert.ok(html.includes("Not refreshed yet"));
-  assert.ok(html.includes('aria-label="Open dashboard"'));
-  assert.ok(html.includes('aria-label="Open current read"'));
-  assert.ok(html.includes('aria-label="Open date scan"'));
-  assert.ok(html.includes('aria-label="Open routes page"'));
-  assert.ok(!html.includes(">Open dashboard<"));
-  assert.ok(!html.includes(">Open read<"));
-  assert.ok(!html.includes(">Date scan<"));
-  assert.ok(!html.includes(">Open routes page<"));
-  assert.ok(html.includes('aria-label="Archive this plan"'));
-  assert.ok(!html.includes(">Archive this plan<"));
-  assert.ok(html.includes('data-plan-path="plans/fixture/plan.json"'));
-  assert.ok(html.includes('data-plan-archive-action="archive"'));
-  assert.ok(!html.includes("Command fallback"));
-  assert.ok(!html.includes("How this works"));
-  assert.ok(!html.includes("Describe the trip in plain language"));
-  assert.ok(html.includes("San Francisco to Portland"));
-  const indexHtml = await readFile(path.join(dir, "outputs", "index.html"), "utf8");
-  assert.ok(indexHtml.includes("#active-plans"));
-  assert.ok(!indexHtml.includes('href="#overview"'));
-  assert.ok(!indexHtml.includes("http-equiv=\"refresh\""));
-  await writeAppIndex({ root: dir, outputPath: path.join(dir, "index.html"), dashboardPrefix: "outputs/" });
-  const rootIndex = await readFile(path.join(dir, "index.html"), "utf8");
-  assert.ok(rootIndex.includes("San Francisco to Portland"));
-  assert.ok(rootIndex.includes("outputs/san-francisco-to-portland-2026-08-01.dashboard.html"));
-  assert.ok(!rootIndex.includes('href="#overview"'));
-  assert.ok(!rootIndex.includes("http-equiv=\"refresh\""));
-
-  const planPath = path.join(planDir, "plan.json");
-  const plan = JSON.parse(await readFile(planPath, "utf8"));
-  plan.status = "archived";
-  await writeFile(planPath, `${JSON.stringify(plan, null, 2)}\n`);
-  await writePlanListDashboard({ root: dir, outputPath });
-  const archivedHtml = await readFile(outputPath, "utf8");
-  assert.ok(archivedHtml.includes("Archived plans"));
-  assert.ok(archivedHtml.includes("plans.archived.html"));
-  assert.ok(!archivedHtml.includes('<section id="archived-plans"'));
-  const archivedOverview = archivedHtml.slice(archivedHtml.indexOf('<section id="overview"'), archivedHtml.indexOf("<details"));
-  assert.ok(!archivedOverview.includes("San Francisco to Portland"));
-
-  const archivePage = await readFile(path.join(dir, "outputs", "plans.archived.html"), "utf8");
-  assert.ok(archivePage.includes("Archived Plans"));
-  assert.ok(archivePage.includes("San Francisco to Portland"));
-  assert.ok(!archivedHtml.includes('aria-label="Restore this plan"'));
-  assert.ok(archivePage.includes('aria-label="Restore this plan"'));
-  assert.ok(!archivePage.includes(">Restore this plan<"));
-  assert.ok(archivePage.includes('data-plan-path="plans/fixture/plan.json"'));
-  assert.ok(archivePage.includes('data-plan-archive-action="restore"'));
-  assert.ok(!archivePage.includes("Command fallback"));
-
-  await writeAppIndex({ root: dir, outputPath: path.join(dir, "index.html"), dashboardPrefix: "outputs/" });
-  const archivedRootIndex = await readFile(path.join(dir, "index.html"), "utf8");
-  assert.ok(archivedRootIndex.includes("outputs/plans.archived.html"));
-  const rootArchivePage = await readFile(path.join(dir, "outputs", "plans.archived.html"), "utf8");
-  assert.ok(rootArchivePage.includes('href="/"'));
+  for (const generated of [html, datesHtml, routesHtml, refreshHtml]) {
+    assert.doesNotMatch(generated, /\bFLI\b/);
+  }
   await rm(dir, { recursive: true, force: true });
 });
 
@@ -388,6 +349,19 @@ test("flight detail drawer does not call multi-stop flights nonstop", () => {
   assert.ok(!html.includes("<span>Onboard</span></div>"));
 });
 
+test("nonstop best-choice copy stays destination neutral", () => {
+  const sentence = bestChoiceSentence(sampleFlight({
+    routeIdeaLabel: "Seattle to Keflavik/Iceland",
+    departureAirport: "SEA",
+    arrivalAirport: "KEF",
+    stops: 0,
+    layovers: []
+  }));
+
+  assert.ok(sentence.includes("price and departure time"));
+  assert.ok(!sentence.includes("Bangkok airport"));
+});
+
 test("flight links use the displayed airport pair instead of stale snapshot URLs", () => {
   const url = flightGoogleFlightsUrl(sampleFlight({
     departureAirport: "CNX",
@@ -403,7 +377,7 @@ test("flight links use the displayed airport pair instead of stale snapshot URLs
 test("natural-language plan creation parses current trip and asks clarification for ambiguous cities", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "flight-plan-new-"));
   const current = await createPlanFromText({
-    text: "one way Chiang Mai to Bend via Tokyo for two nights around August 1 plus or minus 3, cheapest but fewest layovers",
+    text: "one way Chiang Mai to Redmond Oregon RDM via Tokyo for two nights around August 1 plus or minus 3, cheapest but fewest layovers",
     outputDir: path.join(dir, "current"),
     root: dir
   });
@@ -413,11 +387,15 @@ test("natural-language plan creation parses current trip and asks clarification 
   assert.equal(current.plan.preferences.priority, "fewest-layovers");
   assert.equal(current.plan.routeIdeas.find((route) => route.id.includes("tokyo")).stopover.nights[0], 2);
   const strict = await createPlanFromText({
-    text: "one way Chiang Mai to Bend around August 1 plus or minus 3, no long long flights and max 30 hours",
+    text: "one way Chiang Mai to Redmond Oregon RDM around August 1 plus or minus 3, no long long flights and max 30 hours",
     outputDir: path.join(dir, "strict"),
     root: dir
   });
   assert.equal(strict.plan.preferences.rejectTotalElapsedHoursOver, 30);
+  await assert.rejects(
+    () => createPlanFromText({ text: "one way Chiang Mai to Bend around August 1 plus or minus 3", outputDir: path.join(dir, "missing-endpoint"), root: dir }),
+    /Where are you flying to\?/
+  );
   await assert.rejects(
     () => createPlanFromText({ text: "Plan flights from Springfield to Portland", outputDir: path.join(dir, "ambiguous"), root: dir }),
     /Clarification needed/

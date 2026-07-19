@@ -2,13 +2,8 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 const root = process.cwd();
-const defaultMaxLines = 450;
-const fileCeilings = new Map([
-  ["src/dashboard.js", 950],
-  ["src/report.js", 525],
-  ["src/cli.js", 575],
-  ["scripts/check-file-sizes.mjs", 160]
-]);
+const productionMaxLines = 300;
+const testMaxLines = 450;
 
 const ignoredDirectories = new Set(["node_modules", "outputs", ".git"]);
 
@@ -25,7 +20,7 @@ async function listJavaScriptFiles(dir) {
 }
 
 function relative(file) {
-  return path.relative(root, file);
+  return path.relative(root, file).split(path.sep).join("/");
 }
 
 const files = await listJavaScriptFiles(root);
@@ -34,8 +29,8 @@ const violations = [];
 for (const file of files) {
   const rel = relative(file);
   const text = await readFile(file, "utf8");
-  const lines = text.split("\n").length;
-  const max = fileCeilings.get(rel) ?? defaultMaxLines;
+  const lines = lineCount(text);
+  const max = rel.startsWith("test/") ? testMaxLines : productionMaxLines;
   if (lines > max) violations.push({ rel, lines, max });
 }
 
@@ -48,3 +43,9 @@ if (violations.length) {
 }
 
 console.log(`File-size guard passed for ${files.length} JavaScript files.`);
+
+function lineCount(text) {
+  if (!text) return 0;
+  const lines = text.split(/\r?\n/).length;
+  return lines - Number(text.endsWith("\n"));
+}

@@ -42,10 +42,13 @@ Do not paste secrets, private local paths, screenshots of personal dashboards, o
 Run:
 
 ```bash
+npm run release:audit
 rg -n "api key|secret|sk-|AIza|token=|/Users/|/home/" .
 ```
 
-Review any matches manually. Placeholder names are acceptable; real token values, private local paths, and generated trip data are not.
+The release audit checks the Git index for protected generated paths, scans only tracked and unignored publishable files, and rejects publishable symbolic links without following their targets. It also verifies the local server's loopback default and established request/static-file safety boundaries. These source checks are release tripwires; the HTTP security tests remain the behavioral proof.
+
+Review manual search matches carefully. Placeholder names are acceptable; real token values, private local paths, and generated trip data are not.
 
 ## Generated HTML
 

@@ -1,12 +1,17 @@
-import { dateOnly, escapeAttr, escapeHtml, formatMinutes, money } from "./html-utils.js";
+import { escapeAttr, escapeHtml, formatMinutes } from "./html-utils.js";
 import { airlineDisplay } from "./airline-display.js";
 import { connectionPill, renderAssumptions, renderCardHead, renderPainBreakdown } from "./dashboard-flight-components.js";
+import { groupByRouteIdea } from "./route-options.js";
+import { renderRoutePriceHistory } from "./dashboard-route-history.js";
+import { minBy } from "./collections.js";
+
+export { groupByRouteIdea } from "./route-options.js";
 
 // Route Evidence owns route grouping, composed stopovers, and route-level card rendering.
-export function renderRoute(route, flights, refreshPlan, open = false, compactRoute = false) {
-  const top = flights.slice(0, 8);
+export function renderRoute(route, flights, refreshPlan, open = false, compactRoute = false, priceHistory = null) {
+  const displayed = selectRouteOptions(flights);
   const missing = missingRefreshCalls(refreshPlan, route.id);
-  const lead = top[0];
+  const lead = displayed[0]?.option;
   return `<details class="route" id="${escapeHtml(route.id)}" ${open ? "open" : ""}>
     <summary><h3>${escapeHtml(route.label)}</h3></summary>
     <p class="sub">${escapeHtml(route.summary ?? "")}</p>
@@ -14,24 +19,26 @@ export function renderRoute(route, flights, refreshPlan, open = false, compactRo
       ${routeStatusPills(route, lead)}
       ${route.stopover ? `<span class="pill warn">separate stopover legs</span><span class="pill">${escapeHtml(route.stopover.label)} ${escapeHtml((route.stopover.nights ?? []).join("/") || "?")} night</span>` : ""}
     </div>
-    ${top.length ? `${renderRouteSortControls()}<div class="route-options" data-route-options>${top.map((option, index) => renderTripOption(option, compactRoute, index)).join("")}</div>` : renderMissingRoute(route, missing)}
+    ${renderRoutePriceHistory(priceHistory)}
+    ${displayed.length ? `${renderRouteSortControls()}<div class="route-options" data-route-options>${displayed.map(({ option, rank }) => renderTripOption(option, compactRoute, rank)).join("")}</div>` : renderMissingRoute(route, missing)}
   </details>`;
 }
 
-export function groupByRouteIdea(plan, flights) {
-  const groups = new Map(plan.routeIdeas.map((route) => [route.id, []]));
-  const complete = flights.filter((flight) => flight.tripComplete !== false && flight.destinationComplete !== false);
-  for (const route of plan.routeIdeas) {
-    groups.get(route.id).push(...composeStopoverOptions(route, flights));
+function selectRouteOptions(flights, limit = 8) {
+  const complete = flights.filter((option) =>
+    option.tripComplete !== false &&
+    option.destinationComplete !== false &&
+    Number.isFinite(option.price ?? option.totalCost) &&
+    Number.isFinite(option.durationMinutes)
+  );
+  const selected = flights.slice(0, limit);
+  for (const leader of [
+    minBy(complete, (option) => option.price ?? option.totalCost),
+    minBy(complete, (option) => option.durationMinutes)
+  ]) {
+    if (leader && !selected.includes(leader)) selected.push(leader);
   }
-  for (const flight of complete) {
-    const route = plan.routeIdeas.find((idea) => matchesRouteIdea(idea, flight));
-    if (route) groups.get(route.id).push(flight);
-  }
-  for (const [key, list] of groups) {
-    groups.set(key, list.sort((a, b) => optionScore(a) - optionScore(b)));
-  }
-  return groups;
+  return selected.map((option) => ({ option, rank: flights.indexOf(option) }));
 }
 
 function renderRouteSortControls() {
@@ -65,12 +72,15 @@ function renderMissingRoute(route, missing) {
   const reason = missing.length
     ? `Missing cached data for ${missing.map((call) => call.id).join(", ")}. Run a light live refresh when ready.`
     : "No complete or composed options are available in the current snapshot.";
-  const title = route.type?.includes("alternate-start") ? "Needs Chiang Mai to Bangkok data" : "Needs more data";
+  const title = route.type?.includes("alternate-start") ? "Needs starting-city data" : "Needs more data";
   return `<div class="row"><strong>${escapeHtml(title)}</strong><p class="small">${escapeHtml(reason)}</p></div>`;
 }
 
 function renderFlightRow(flight, compactRoute = false, rank = 0) {
-  const layoverText = (flight.layovers ?? []).map((layover) => `${layover.id ?? layover.name ?? "Layover"} ${formatMinutes(layover.duration)}`).join(" | ");
+  const layovers = flight.layovers ?? [];
+  const layoverText = duplicatesConnectionPill(layovers, flight.connectionRisk?.shortest)
+    ? ""
+    : layovers.map((layover) => `${layover.id ?? layover.name ?? "Layover"} ${formatMinutes(layover.duration) ?? "time unknown"}`).join(" | ");
   const airline = airlineDisplay(flight) || "Unknown airline";
   return `<article class="flight-card route-option"${routeOptionSortAttrs(flight, rank)}>
     ${renderCardHead("Route option", flight, { hideRouteLabel: compactRoute })}
@@ -84,6 +94,14 @@ function renderFlightRow(flight, compactRoute = false, rank = 0) {
     ${flight.travelPain ? renderPainBreakdown(flight) : ""}
     ${flight.assumptions ? renderAssumptions(flight) : ""}
   </article>`;
+}
+
+function duplicatesConnectionPill(layovers, shortest) {
+  if (layovers.length !== 1 || !shortest) return false;
+  const [layover] = layovers;
+  const sameAirport = (layover.id && shortest.id && layover.id === shortest.id) ||
+    (layover.name && shortest.name && layover.name === shortest.name);
+  return Boolean(sameAirport && layover.duration === shortest.duration);
 }
 
 function routeOptionSortAttrs(option, rank) {
@@ -107,74 +125,8 @@ function routeStatusPills(route, lead) {
   return pills.join("");
 }
 
-function composeStopoverOptions(route, flights) {
-  if (!route.stopover) return [];
-  const focusIds = route.focusSearchIds ?? [];
-  const nights = route.stopover.nights?.[0] ?? 1;
-  const inboundByDate = bestByDate(flights.filter((flight) => focusIds.includes(flight.searchId) && !endsAtFinalAirport(flight)));
-  const onwardByDate = bestByDate(flights.filter((flight) => focusIds.includes(flight.searchId) && endsAtFinalAirport(flight)));
-  const options = [];
-  for (const [inboundDate, inbound] of inboundByDate) {
-    const onward = onwardByDate.get(addDays(inboundDate, nights));
-    if (!inbound || !onward) continue;
-    options.push(composeStopoverOption(route, inbound, onward, nights));
-  }
-  return options;
-}
-
-function composeStopoverOption(route, inbound, onward, nights) {
-  const hotelCost = nights * (route.stopover.hotelEstimateUsdPerNight ?? 0);
-  const totalCost = (inbound.price ?? 0) + (onward.price ?? 0) + hotelCost;
-  return {
-    kind: "composed-stopover",
-    label: `${inbound.departureAirport} -> ${route.stopover.label} -> ${onward.arrivalAirport} on ${dateOnly(inbound.departureTime)}`,
-    summary: `$${money(inbound.price)} to ${route.stopover.label}, ${nights} night stopover, then $${money(onward.price)} home. Hotel estimate $${money(hotelCost)}.`,
-    inbound,
-    onward,
-    nights,
-    stopoverLabel: route.stopover.label,
-    totalCost,
-    durationMinutes: (inbound.durationMinutes ?? 0) + (onward.durationMinutes ?? 0),
-    googleFlightsUrl: onward.googleFlightsUrl ?? inbound.googleFlightsUrl
-  };
-}
-
-function bestByDate(flights) {
-  const byDate = new Map();
-  for (const flight of flights) {
-    const date = dateOnly(flight.departureTime);
-    if (!date) continue;
-    const current = byDate.get(date);
-    if (!current || optionScore(flight) < optionScore(current)) byDate.set(date, flight);
-  }
-  return byDate;
-}
-
-function endsAtFinalAirport(flight) {
-  return flight.arrivalAirport === "RDM" || (flight.expectedArrivalAirports ?? []).includes("RDM");
-}
-
-function optionScore(option) {
-  if (option.kind === "composed-stopover") return option.totalCost / 35 + option.durationMinutes / 18;
-  return option.scoring?.score ?? 99999;
-}
-
 function missingRefreshCalls(refreshPlan, routeIdeaId) {
   return (refreshPlan?.calls ?? []).filter((call) => call.routeIdeaId === routeIdeaId && call.cache.status === "missing");
-}
-
-function matchesRouteIdea(route, flight) {
-  if ((route.focusSearchIds ?? []).includes(flight.searchId)) return true;
-  if ((route.batches ?? []).some((batch) => batch === flight.searchBatch || batch === flight.routeFamily)) return true;
-  const haystack = `${flight.searchTitle ?? ""} ${flight.routeFamily ?? ""} ${flight.searchBatch ?? ""}`.toLowerCase();
-  return routeTokens(route).every((token) => haystack.includes(token));
-}
-
-function routeTokens(route) {
-  return String(`${route.id ?? ""} ${route.label ?? ""}`)
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((token) => token.length > 2 && !["the", "and", "with"].includes(token));
 }
 
 function tightLayoverClass(flight) {
@@ -182,12 +134,5 @@ function tightLayoverClass(flight) {
 }
 
 function isSeparateStopover(flight) {
-  return ["tokyo-stopover", "bangkok-stopover"].includes(flight.routeFamily) || /tokyo|bangkok \d+n/i.test(flight.searchTitle ?? "");
-}
-
-function addDays(value, days) {
-  const [year, month, day] = String(value ?? "").slice(0, 10).split("-").map(Number);
-  if (!year || !month || !day) return "";
-  const date = new Date(Date.UTC(year, month - 1, day + days));
-  return date.toISOString().slice(0, 10);
+  return String(flight.routeFamily ?? "").includes("stopover") || /stopover|\b\d+n\b/i.test(flight.searchTitle ?? "");
 }

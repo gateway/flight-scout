@@ -1,9 +1,10 @@
 import { dashboardCss } from "./dashboard-styles.js";
 import { escapeAttr, escapeHtml, formatDateTime, money } from "./html-utils.js";
 import { planDisplaySummary } from "./plan-display.js";
+import { renderRefreshOverlay, renderRefreshPlanButton, renderRefreshScript } from "./browser-refresh-controls.js";
 
 // Shared page shell, top navigation, and side-drawer browser behavior.
-function renderPageShell({ plan, current, pages }, activePage, body) {
+function renderPageShell({ plan, planPath, current, pages }, activePage, body) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -14,7 +15,7 @@ function renderPageShell({ plan, current, pages }, activePage, body) {
 </head>
 <body>
 <main>
-  ${renderPlanNav(pages, activePage)}
+  ${renderPlanNav(pages, activePage, planPath)}
   <div class="hero">
     <div class="eyebrow">Saved flight plan</div>
     <h1>${escapeHtml(plan.name)}</h1>
@@ -24,6 +25,8 @@ function renderPageShell({ plan, current, pages }, activePage, body) {
   ${body}
 </main>
 ${renderDrawerScript()}
+${renderRefreshOverlay()}
+${renderRefreshScript()}
 </body>
 </html>`;
 }
@@ -73,7 +76,7 @@ document.addEventListener("keydown", (event) => {
 </script>`;
 }
 
-function renderPlanNav(pages, activePage) {
+function renderPlanNav(pages, activePage, planPath) {
   const pageLinks = ["decision", "dates", "routes", "refresh"].map((key) => {
     const page = pages[key];
     const className = `nav-link${key === activePage ? " primary" : ""}`;
@@ -82,6 +85,7 @@ function renderPlanNav(pages, activePage) {
   return `<nav class="top-nav">
     <a class="nav-link" href="/">All plans</a>
     ${pageLinks}
+    ${planPath ? renderRefreshPlanButton(planPath, { className: "nav-refresh-btn" }) : ""}
   </nav>`;
 }
 

@@ -1,6 +1,6 @@
 ---
 name: flight-plan-riffer
-description: Turn rough natural-language flight ideas into practical route comparisons with saved flight research plans, date windows, cheapest-date scans, optional stopovers, alternate starts, airport-code clarification, filters, viability rules, FLI-first provider strategy, and confirmation-gated refresh strategy. Use when the user wants to riff through a trip idea, compare routes, include or skip stopovers, search plus/minus date ranges, avoid long flights or tight layovers, track price movement, refresh flight data, or ask for the best choices across saved plans.
+description: Turn rough natural-language flight ideas into practical one-way or composed round-trip comparisons with saved plans, date windows, optional stopovers, alternate starts, airport-code clarification, supported constraints, and confirmation-gated local searches. Use when the user wants to riff through a trip idea, compare routes, search plus/minus date ranges, avoid long flights or tight layovers, refresh flight data, or ask for the best choices across saved plans.
 ---
 
 # Flight Plan Riffer
@@ -10,7 +10,7 @@ Use this skill to riff a human travel idea into practical route options and a co
 ## Workflow
 
 1. Interpret the user's plain-language plan.
-   - Extract origin, destination, date window, trip type, passenger count, stopovers, alternate starts, budget, filters, watch/alert rules, and pain limits.
+   - Extract origin, destination, date window, trip type, stopovers, alternate starts, USD budget, supported filters, and pain limits.
    - Treat "date A to B" as a set of one-way candidate departure dates unless the user explicitly asks round trip.
    - Treat "plus or minus N days" as a centered date window.
    - Treat "plus or minus a few days" as ambiguous; ask whether they mean plus/minus 2 or 3 days unless the prior context makes it obvious.
@@ -19,13 +19,17 @@ Use this skill to riff a human travel idea into practical route options and a co
    - Treat "maybe stop in X" as an optional route idea, not a required route.
    - Treat "if X is too expensive, skip it" as a direct route plus a stopover route comparison.
    - Treat "I could stay in X for one or two nights" as an optional alternate-start or stopover route with explicit stay nights and the user's hotel estimate when provided.
-   - Treat "watch this", "track this", "tell me if it drops", or "under $X" as saved plan metadata for future refresh comparison.
+   - Treat "under $X" and supported total-time limits as optional local watch targets. They are evaluated against saved results after a refresh; do not promise background monitoring or external notifications.
 
 2. Ask clarifying questions only when needed.
    - Ask no more than 3 short questions if airports, dates, trip type, stopover intent, or hard constraints are unclear.
-   - Prefer concrete questions: airport/city ambiguity, date range, one-way vs round-trip, required vs optional stopover, budget and maximum pain threshold.
+   - Prefer concrete questions: airport/city ambiguity, date range, one-way confirmation, required vs optional stopover, budget and maximum pain threshold.
+   - If the user asks for a round trip, require both outbound and return date windows. Explain that the app compares independently searched one-way tickets and does not imply one protected round-trip booking.
+   - If the user asks for provider-native multi-city travel, explain that it is not supported and offer explicit one-way route ideas instead.
    - If the user gives a soft target and a hard limit that could conflict, ask back in plain language before scanning (for example: "Should I treat 11 hours as a nice-to-have and 26 hours as the hard cutoff?").
    - If the user gives no date, ask for a date or date range before creating scan searches.
+   - Resolve a date without a year to its next future occurrence; never assume a fixed calendar year.
+   - If a flight budget is stated in EUR, GBP, THB, or another non-USD currency, ask for the USD budget before creating a plan. Do not relabel or convert it.
    - If the user gives a date but not flexibility, ask whether they want the exact date or a plus/minus window only when flexibility materially changes the search set.
    - Do not guess when a missing answer would send the wrong searches to the provider.
    - Do not ask if reasonable defaults are clear from the request and can be shown back for confirmation.
@@ -35,17 +39,16 @@ Use this skill to riff a human travel idea into practical route options and a co
    - Include alternate starts when the user mentions nearby airports, gateway cities, or getting to a different city before the long-haul flight.
    - Include stopover routes as separate route ideas with explicit stay nights.
    - Include "skip stopover" alternatives when the user says the stopover is optional.
-   - For Chiang Mai to Redmond with an optional Bangkok stay, compare:
-     - Chiang Mai to Redmond/RDM as the clean start-from-origin route.
-     - Chiang Mai to Bangkok plus 1-2 hotel nights, then Bangkok to Redmond/RDM as a budget/logistics route.
-     - Bangkok to Redmond/RDM only as part of the alternate-start route unless the user says they can already be in Bangkok.
+   - When the user can travel to a different starting city first, compare the original start against the alternate start plus the stated transfer and hotel assumptions.
+   - Do not present an alternate-start flight by itself as a complete trip unless the user says they will already be at that airport.
 
 4. Convert preferences into enforceable rules.
    - "no long long flights", "brutal", or "painful" -> hard elapsed-time threshold.
    - "max 30 hours" -> `rejectTotalElapsedHoursOver: 30`.
    - "I hate tight layovers" -> increase connection minimums.
    - "worth it only if much cheaper" -> compare dollars saved per added travel hour.
-   - "nonstop", "direct", "one stop max", "avoid airline X", "only airline X", "leave after 8am", "arrive before midnight", "exclude basic economy", and cabin class should become explicit provider filters or visible assumptions.
+   - "nonstop" and "direct" become the supported stop-count rule.
+   - Airline, cabin, fare-family, and time-of-day requests are not provider-enforced yet. Keep them as visible limitations and never claim they were filtered.
    - Keep raw provider data, but exclude hard rejects from recommendations.
 
 5. Plan refreshes before local FLI searches.
@@ -61,7 +64,9 @@ Use this skill to riff a human travel idea into practical route options and a co
    - Lead with the best practical choice, not raw cheapest.
    - Show cheapest, fastest, best balance, and best stopover as tradeoffs.
    - Explain total travel time, air time, layovers, stopover nights, and tight connection risk.
+   - Surface any saved price/time watch target that the refreshed results now satisfy.
    - Keep "View" links to Google Flights or provider verification pages when the app renders results.
+   - For round trips, state the combined fare and flight time, label outbound and return separately, show both one-way booking links, and keep the separate-ticket warning visible.
    - Use the shared dashboard semantic highlight vocabulary for decision-changing phrases:
      - `text-signal-good` / `metric-signal-good` for savings, cheaper dates, and under-budget results.
      - `text-signal-warn` / `metric-signal-warn` for extra cost, added travel time, long waits, or logistics tradeoffs.
@@ -77,6 +82,11 @@ Use this skill to riff a human travel idea into practical route options and a co
    - Start with the top 3 practical options across active plans. For each option, include price, total time, date, route path, connection risk, and why it is worth checking.
    - If the latest data is stale, incomplete, or missing expected date coverage, say that plainly and recommend a focused refresh before treating the answer as final.
    - Only run a refresh when the user explicitly asks to update data.
+   - When the user asks to refresh all active plans and summarize what changed, use the project’s combined refresh summary path so the data refresh, dashboard rebuild, and markdown lowdown happen in one pass.
+   - If the user says "latest prices", "current prices", "today", "this morning", "right now", "ready to book", or similar, treat it as a fresh local refresh request. Use `npm run plan:refresh-latest`, not a saved-data-only summary.
+   - If the user only asks what the saved plans currently say, regenerate the plans dashboard if needed and read the saved snapshots without running a refresh command.
+   - After a refresh, answer from `outputs/latest-refresh-lowdown.md` first, then use snapshots only for extra detail the lowdown does not cover.
+   - Do not open or verify the browser after every refresh. Use browser verification only when UI code changed, the user asks to see the page, the server state is uncertain, or the generated pages appear broken.
 
 ## Pre-Scan Reply Contract
 
@@ -107,31 +117,36 @@ Do not ask the user to request HTML, dashboards, or report generation. The skill
   - "Say yes and I’ll run this search."
 - When asking questions, keep them direct and useful:
   - "Should 25 hours be a hard cutoff, or should I show slightly longer flights if they are much cheaper?"
-  - "Should I search both Tokyo airports, HND and NRT?"
+  - "Should I search every passenger airport for that city, or only the airport you named?"
   - "Do you want plus/minus 2 days or plus/minus 3 days?"
 
 ## Example Interpretation Pattern
 
-For a request like "I need to fly from Chiang Mai to Redmond, Oregon around August 1, plus or minus a few days. Nothing over 26 hours. I might stay in Bangkok for 1 or 2 nights if it helps, hotel about $50/night," reply before searching:
+For a request like "I need to fly from City A to City B around September 10, plus or minus a few days. Nothing over 18 hours. I might start from nearby City C after a one-night stay if it helps," reply before searching:
 
-- Confirm this is a one-way trip to Redmond/RDM around August 1.
+- Confirm this is a one-way trip from City A to City B around September 10.
 - Ask whether "a few days" means plus/minus 2 or plus/minus 3 if not already clear.
-- Compare Chiang Mai -> Redmond/RDM against Chiang Mai -> Bangkok + 1-2 hotel nights + Bangkok -> Redmond/RDM.
+- Compare the original start against City A -> City C + one hotel night + City C -> City B.
 - Use the user's hotel estimate in the route tradeoff math.
-- Treat over 26 hours total travel time as a hard reject unless the user changes it.
+- Treat over 18 hours total travel time as a hard reject unless the user changes it.
 - Wait for confirmation before searching.
 
 ## Local Project Pattern
 
-When working in `flight-research-agent`, prefer the existing plan/dashboard commands:
+When working in `flight-scout`, prefer the existing plan/dashboard commands:
 
 ```bash
-npm run plan:new -- 'one way Chiang Mai to Bend around Aug 1 plus or minus 3, maybe Tokyo one night if worth it, no long long flights'
+npm run plan:new -- 'one way from City A to City B around September 10 plus or minus 2 days, optional stopover in City C for one night, under 18 hours'
 npm run plan:refresh-plan -- plans/<plan-id>/plan.json --mode light
 npm run plan:refresh-plan -- plans/<plan-id>/plan.json --mode targeted-deep
 npm run plan:refresh-plan -- plans/<plan-id>/plan.json --mode standard
+npm run plan:refresh-summary
+npm run plan:refresh-latest
+npm run plan:refresh-scheduled -- --mode standard --jitter-ms 300000
 npm run plan:dashboard -- plans/<plan-id>/plan.json --mode light
 ```
+
+Use `plan:refresh-scheduled` only when the user explicitly wants local scheduling. It performs one cache-aware active-plan pass and exits; cron or `launchd` owns repetition. Never describe it as an always-on monitor, and never include archived plans.
 
 Use single quotes around natural-language shell arguments, especially when the text includes `$1,100` style budgets, so the shell does not expand `$1` before Node receives the request.
 
@@ -152,6 +167,32 @@ npm run plan:list-dashboard
 ```
 
 Then read the active plan snapshots under `plans/<plan-id>/latest-snapshot.json` when a text answer is needed.
+
+When the user says something like "refresh all active plans and tell me what changed", prefer:
+
+```bash
+npm run plan:refresh-latest
+```
+
+That command forces fresh local searches for the active saved plans, regenerates the dashboards, and writes `outputs/latest-refresh-lowdown.md`. Use that markdown plus the refreshed snapshots for the final human-readable answer.
+
+If the user asks for a saved-data summary without current prices, regenerate the dashboard without refreshing:
+
+```bash
+npm run plan:list-dashboard
+```
+
+### Post-Refresh Reply Contract
+
+After `npm run plan:refresh-latest`, keep the answer short and useful:
+
+1. Best practical option today.
+2. Cheapest option worth opening.
+3. Fastest reasonable option if it matters.
+4. Any new option that could change the decision.
+5. What mostly moved higher or lower since the last refresh.
+
+Do not paste the whole lowdown unless the user asks. Link to the dashboard and markdown lowdown when helpful.
 
 ## Reference
 

@@ -1,6 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { slugify } from "./strings.js";
+import { watchRulesFromIntent } from "./watch-rules.js";
 
 // Converts validated natural-language intent into the saved plan/trip files that drive
 // refreshes, dashboards, date comparison, and the all-plans overview.
@@ -45,6 +47,7 @@ export function buildTripSpec(intent) {
     budget,
     tripType: intent.tripType === "round-trip" ? "round-trip" : "one-way",
     departureWindow: intent.departureWindow,
+    ...(intent.tripType === "round-trip" ? { returnWindow: intent.returnWindow } : {}),
     origin: intent.origin,
     alternateStarts: [],
     destination: intent.destination,
@@ -52,7 +55,8 @@ export function buildTripSpec(intent) {
       label: intent.stopover.label,
       airports: intent.stopover.airports,
       nights: intent.stopover.nights,
-      required: intent.stopover.required
+      required: intent.stopover.required,
+      ...(intent.stopover.hotelEstimateUsdPerNight ? { hotelEstimateUsdPerNight: intent.stopover.hotelEstimateUsdPerNight } : {})
     }] : [],
     gatewayAirports: [],
     routeModes: {
@@ -65,11 +69,14 @@ export function buildTripSpec(intent) {
       rejectTotalElapsedHoursOver: intent.preferences.rejectTotalElapsedHoursOver ?? 35,
       preferredInternationalToDomesticConnectionMinutes: 180,
       preferredDomesticConnectionMinutes: 90,
+      connectionTypesByAirport: {},
       separateTicketMinimumBufferMinutes: 360,
       lastFlightToDestinationPenalty: 25,
       ...(intent.preferences.preferredTotalElapsedHours ? { preferredTotalElapsedHours: intent.preferences.preferredTotalElapsedHours } : {}),
       requestDelayMs: 5000,
-      hotelNightEstimate: {}
+      hotelNightEstimate: intent.stopover?.hotelEstimateUsdPerNight
+        ? { [intent.stopover.label]: intent.stopover.hotelEstimateUsdPerNight }
+        : {}
     }
   };
 }
@@ -78,6 +85,7 @@ function buildPlan({ intent, id, tripSpecPath }) {
   return {
     id,
     name: `${intent.origin.label} to ${intent.destination.label}`,
+    primary: false,
     createdAt: new Date().toISOString(),
     tripSpecPath,
     intent: {
@@ -90,6 +98,14 @@ function buildPlan({ intent, id, tripSpecPath }) {
         start: intent.departureWindow.start,
         end: intent.departureWindow.end
       },
+      ...(intent.tripType === "round-trip" ? {
+        returnDateCoverage: {
+          center: intent.returnWindow.center ?? intent.returnWindow.start,
+          plusMinusDays: intent.returnWindow.mode === "plus-minus" ? intent.returnWindow.days : 0,
+          start: intent.returnWindow.start,
+          end: intent.returnWindow.end
+        }
+      } : {}),
       assumptions: intent.assumptions
     },
     preferences: {
@@ -104,6 +120,7 @@ function buildPlan({ intent, id, tripSpecPath }) {
       ...(intent.preferences.preferredTotalElapsedHours ? { preferredTotalElapsedHours: intent.preferences.preferredTotalElapsedHours } : {}),
       ...(intent.preferences.rejectTotalElapsedHoursOver ? { rejectTotalElapsedHoursOver: intent.preferences.rejectTotalElapsedHoursOver } : {})
     },
+    watchRules: watchRulesFromIntent(intent),
     routeIdeas: routeIdeasFromIntent(intent),
     refreshPolicy: {
       defaultMode: "standard",
@@ -119,7 +136,7 @@ function routeIdeasFromIntent(intent) {
     id: routeId,
     label: `${intent.origin.label} to ${intent.destination.label}`,
     summary: routeSummary(intent),
-    type: "direct-to-final",
+    type: intent.tripType === "round-trip" ? "round-trip" : "direct-to-final",
     required: true,
     batches: intent.directness.requested ? ["fewest-layovers", "fastest"] : ["fastest"],
     originAirports: intent.origin.airports,
@@ -133,7 +150,13 @@ function routeIdeasFromIntent(intent) {
       summary: `Compare the ${intent.stopover.label} stopover against the direct route.`,
       type: "stopover",
       required: intent.stopover.required,
-      stopover: { label: intent.stopover.label, nights: intent.stopover.nights },
+      stopover: {
+        label: intent.stopover.label,
+        airports: intent.stopover.airports,
+        routeOrder: 0,
+        nights: intent.stopover.nights,
+        ...(intent.stopover.hotelEstimateUsdPerNight ? { hotelEstimateUsdPerNight: intent.stopover.hotelEstimateUsdPerNight } : {})
+      },
       batches: ["fastest"],
       originAirports: intent.origin.airports,
       destinationAirports: intent.destination.airports
@@ -144,6 +167,7 @@ function routeIdeasFromIntent(intent) {
 
 function routeSummary(intent) {
   const parts = [`Search ${intent.origin.label} to ${intent.destination.label}`];
+  if (intent.tripType === "round-trip") parts.push("pair outbound and return one-way tickets");
   if (intent.directness.required) parts.push("direct/nonstop only if available");
   if (intent.budget?.hardMax) parts.push(`under $${intent.budget.hardMax}`);
   if (intent.preferences.preferredTotalElapsedHours) parts.push(`prefer under ${intent.preferences.preferredTotalElapsedHours}h`);
@@ -153,14 +177,8 @@ function routeSummary(intent) {
 
 function stablePlanId(intent) {
   const date = intent.departureWindow.center ?? intent.departureWindow.start;
-  return slugify(`${intent.origin.label}-to-${intent.destination.label}-${date}`);
-}
-
-function slugify(value) {
-  return String(value)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
+  const stopover = intent.stopover?.airports?.length ? `via-${intent.stopover.label}` : "";
+  return slugify([intent.origin.label, "to", intent.destination.label, stopover, date].filter(Boolean).join("-"));
 }
 
 function relativePlanPath(planDir, targetPath) {

@@ -1,5 +1,6 @@
 node_modules/
 .venv/
+.playwright-cli/
 .DS_Store
 *.log
 
@@ -26,4 +27,6 @@ docs/LOW_COST_PROVIDER_AND_PUBLIC_RELEASE_SPEC.md
 docs/NATURAL_LANGUAGE_PLAN_FLOW_SPEC.md
 docs/PLAN_DASHBOARD_REFRESH_SPEC.md
 docs/RELEASE_HARDENING_SPEC.md
+docs/DASHBOARD_COHERENCE_SPEC.md
 docs/reviews/
+docs/engineering/

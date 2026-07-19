@@ -5,8 +5,26 @@ import { buildAtomicLegSearches } from "./planner.js";
 import { providerCacheCandidates } from "./providers/provider-cache.js";
 import { flattenProviderResults, providerIdFromRawResult } from "./providers/provider-normalize.js";
 import { writeAppIndex, writePlanListDashboard } from "./plan-list-dashboard.js";
+import { jsonReadWarning, readJsonFile } from "./json-files.js";
+import { escapeRegExp } from "./regex.js";
 
 export const ROOT = process.cwd();
+
+const UNSUPPORTED_OPTIONS = new Set(["--allow-broad", "--atomic", "--batch", "--limit"]);
+const OPTION_COMMANDS = {
+  "--live": ["plan:refresh"],
+  "--refresh": ["plan:refresh-plan", "plan:refresh", "plan:refresh-summary"],
+  "--force": ["plan:refresh-plan", "plan:refresh", "plan:refresh-summary"],
+  "--restore": ["plan:archive"],
+  "--out": ["intent", "plan:new", "plan:refresh", "plan:dashboard", "plan:list-dashboard"],
+  "--mode": ["plan:new", "plan:refresh-plan", "plan:refresh", "plan:refresh-summary", "plan:refresh-scheduled", "plan:dashboard"],
+  "--baseline-ranked": ["plan:refresh"],
+  "--max-runs": ["plan:refresh", "plan:refresh-summary", "plan:refresh-scheduled"],
+  "--jitter-ms": ["plan:refresh-scheduled"],
+  "--older-than-days": ["cache:prune"],
+  "--apply": ["cache:prune"],
+  "--confirm": ["cache:prune"]
+};
 
 export async function loadDotEnv() {
   const envPath = path.join(ROOT, ".env");
@@ -29,22 +47,29 @@ export function usage() {
   npm run plan:new -- "One-way from Chiang Mai to Bangkok around August 1 plus or minus 3 days"
   npm run plan:refresh-plan -- plans/flights-home-august-2026/plan.json --mode light
   npm run plan:refresh -- plans/flights-home-august-2026/plan.json --mode light --live
+  npm run plan:refresh-scheduled -- --mode standard --jitter-ms 300000
   npm run plan:snapshots -- plans/flights-home-august-2026/plan.json
   npm run plan:dashboard -- plans/flights-home-august-2026/plan.json
   npm run plan:archive -- plans/flights-home-august-2026/plan.json
   npm run plan:archive -- plans/flights-home-august-2026/plan.json --restore
   npm run plan:list-dashboard
+  npm run cache:prune -- --older-than-days 30
 
 Flags:
   --live           Run selected local FLI searches. Without this, refresh commands preview only.
-  --max-runs N     Hard cap local FLI searches.
+  --max-runs N     Positive-integer cap on local FLI searches.
+  --jitter-ms N    Maximum scheduled-refresh jitter in milliseconds.
   --refresh        Rerun cached searches.
   --force          Alias for --refresh.
-  --allow-broad    Allow broad live all-plan searches.
-  --out FILE       Output path for intent JSON.
+  --out PATH       Custom output file or plan directory where supported.
   --mode NAME      Plan refresh mode: light, standard, targeted-deep, or deep.
   --baseline-ranked FILE
                   Import an existing ranked JSON file as a plan snapshot.
+  --restore        Restore an archived plan with plan:archive.
+  --older-than-days N
+                  Select cache files older than N days with cache:prune.
+  --apply          Delete eligible files with cache:prune after exact confirmation.
+  --confirm TEXT   Required confirmation text for cache deletion.
 `);
 }
 
@@ -52,42 +77,48 @@ export function parseArgs(argv) {
   const [command, ...tokens] = argv;
   const flags = {
     live: false,
-    limit: null,
     maxRuns: null,
-    batch: null,
     refresh: false,
-    allowBroad: false,
-    atomic: false,
     out: null,
     mode: null,
     baselineRanked: null,
+    jitterMs: null,
     restore: false,
+    olderThanDays: null,
+    apply: false,
+    confirmation: null,
     positionals: []
   };
   for (let i = 0; i < tokens.length; i += 1) {
+    if (UNSUPPORTED_OPTIONS.has(tokens[i])) {
+      throw new Error(`Unsupported option: ${tokens[i]}`);
+    }
+    if (tokens[i].startsWith("--")) assertOptionSupported(command, tokens[i]);
     if (tokens[i] === "--live") flags.live = true;
     else if (tokens[i] === "--refresh") flags.refresh = true;
     else if (tokens[i] === "--force") flags.refresh = true;
-    else if (tokens[i] === "--allow-broad") flags.allowBroad = true;
-    else if (tokens[i] === "--atomic") flags.atomic = true;
     else if (tokens[i] === "--restore") flags.restore = true;
+    else if (tokens[i] === "--apply") flags.apply = true;
     else if (tokens[i] === "--out") {
-      flags.out = tokens[i + 1];
+      flags.out = requireOptionValue(tokens, i, tokens[i]);
       i += 1;
     } else if (tokens[i] === "--mode") {
-      flags.mode = tokens[i + 1];
+      flags.mode = requireOptionValue(tokens, i, tokens[i]);
       i += 1;
     } else if (tokens[i] === "--baseline-ranked") {
-      flags.baselineRanked = tokens[i + 1];
-      i += 1;
-    } else if (tokens[i] === "--batch") {
-      flags.batch = tokens[i + 1];
-      i += 1;
-    } else if (tokens[i] === "--limit") {
-      flags.limit = Number(tokens[i + 1]);
+      flags.baselineRanked = requireOptionValue(tokens, i, tokens[i]);
       i += 1;
     } else if (tokens[i] === "--max-runs") {
-      flags.maxRuns = Number(tokens[i + 1]);
+      flags.maxRuns = positiveIntegerOption(requireOptionValue(tokens, i, tokens[i]), tokens[i]);
+      i += 1;
+    } else if (tokens[i] === "--jitter-ms") {
+      flags.jitterMs = nonNegativeIntegerOption(requireOptionValue(tokens, i, tokens[i]), tokens[i]);
+      i += 1;
+    } else if (tokens[i] === "--older-than-days") {
+      flags.olderThanDays = positiveIntegerOption(requireOptionValue(tokens, i, tokens[i]), tokens[i]);
+      i += 1;
+    } else if (tokens[i] === "--confirm") {
+      flags.confirmation = requireOptionValue(tokens, i, tokens[i]);
       i += 1;
     } else {
       flags.positionals.push(tokens[i]);
@@ -95,6 +126,30 @@ export function parseArgs(argv) {
   }
   const [tripPath] = flags.positionals;
   return { command, tripPath, flags };
+}
+
+function assertOptionSupported(command, option) {
+  const commands = OPTION_COMMANDS[option];
+  if (!commands) throw new Error(`Unknown option: ${option}`);
+  if (!commands.includes(command)) throw new Error(`${option} is not supported by ${command}.`);
+}
+
+function requireOptionValue(tokens, index, option) {
+  const value = tokens[index + 1];
+  if (!value || value.startsWith("--")) throw new Error(`${option} requires a value.`);
+  return value;
+}
+
+function positiveIntegerOption(value, option) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 1) throw new Error(`${option} must be a positive integer.`);
+  return number;
+}
+
+function nonNegativeIntegerOption(value, option) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 0) throw new Error(`${option} must be a non-negative integer.`);
+  return number;
 }
 
 export async function loadTrip(tripPath) {
@@ -120,7 +175,7 @@ export function enrichFlights(flights, trip) {
     const searchTitle = flight.searchTitle ?? "";
     let estimatedHotelCost = 0;
     for (const [city, cost] of Object.entries(hotelEstimates)) {
-      const match = searchTitle.match(new RegExp(`${city} (\\d+)n`, "i"));
+      const match = searchTitle.match(new RegExp(`${escapeRegExp(city)} (\\d+)n`, "i"));
       if (match) estimatedHotelCost += Number(match[1]) * cost;
     }
     return { ...flight, estimatedHotelCost, estimatedTransferCost: 0 };
@@ -128,18 +183,32 @@ export function enrichFlights(flights, trip) {
 }
 
 // Normalize cached provider outputs through one path so command modules do not duplicate provider-specific cache rules.
-export async function aggregateCachedFlights(trip, routePlans, { searches = null } = {}) {
+export async function aggregateCachedFlights(trip, routePlans, {
+  searches = null,
+  root = ROOT,
+  onWarning = () => {}
+} = {}) {
   const flights = [];
   const selectedSearches = searches ?? [...routePlans, ...buildAtomicLegSearches(trip, routePlans)];
   const seen = new Set();
   for (const item of selectedSearches) {
     if (seen.has(item.id)) continue;
     seen.add(item.id);
-    for (const candidate of providerCacheCandidates(ROOT, item.id)) {
+    for (const candidate of providerCacheCandidates(root, item.id)) {
       if (!existsSync(candidate.cacheFile)) continue;
-      const result = JSON.parse(await readFile(candidate.cacheFile, "utf8"));
+      let result;
+      try {
+        result = await readJsonFile(candidate.cacheFile);
+      } catch (error) {
+        onWarning(jsonReadWarning(error, {
+          code: "cache-read-failed",
+          cacheFile: candidate.cacheFile,
+          searchId: item.id
+        }));
+        continue;
+      }
       const actualProviderId = providerIdFromRawResult(result);
-      const canonicalFileExists = providerCacheCandidates(ROOT, item.id)
+      const canonicalFileExists = providerCacheCandidates(root, item.id)
         .some((other) => other.providerId === actualProviderId && other.cacheFile !== candidate.cacheFile && existsSync(other.cacheFile));
       if (actualProviderId !== candidate.providerId && canonicalFileExists) continue;
       flights.push(...flattenProviderResults({

@@ -1,3 +1,10 @@
+import {
+  classifyConnection,
+  classifyConnectionDuration,
+  CONNECTION_DURATION,
+  CONNECTION_TYPE
+} from "./connection-duration.js";
+
 export function scoreFlight(flight, rules = {}) {
   const price = flight.price ?? 99999;
   const durationMinutes = flight.durationMinutes ?? 99999;
@@ -46,16 +53,29 @@ export function scoreFlight(flight, rules = {}) {
   }
 
   for (const layover of flight.layovers ?? []) {
-    if (layover.duration < (rules.preferredDomesticConnectionMinutes ?? 90)) {
-      risk += 30;
-      notes.push(`${layover.id ?? layover.name} layover under ${rules.preferredDomesticConnectionMinutes ?? 90}m`);
+    const label = layover.id ?? layover.name ?? "connection";
+    const domesticMinimum = rules.preferredDomesticConnectionMinutes ?? 90;
+    const baseline = classifyConnectionDuration(layover.duration, domesticMinimum);
+    const connection = classifyConnection(layover, rules);
+    if (baseline.status === CONNECTION_DURATION.UNKNOWN) {
+      if (!labels.includes("needs-verification")) labels.push("needs-verification");
+      notes.push(`${label} connection duration needs verification`);
+      continue;
     }
-  }
-
-  const finalLayover = (flight.layovers ?? []).at(-1);
-  if (finalLayover && ["SEA", "SFO", "LAX", "PDX"].includes(finalLayover.id) && finalLayover.duration < (rules.preferredInternationalToDomesticConnectionMinutes ?? 180)) {
-    risk += 35;
-    notes.push(`${finalLayover.id} gateway connection under ${rules.preferredInternationalToDomesticConnectionMinutes ?? 180}m`);
+    if (baseline.status === CONNECTION_DURATION.TIGHT) {
+      risk += 30;
+      notes.push(`${label} layover under ${domesticMinimum}m`);
+    }
+    if (connection.status === CONNECTION_DURATION.UNKNOWN) {
+      if (!labels.includes("needs-verification")) labels.push("needs-verification");
+      notes.push(`${label} connection type needs verification`);
+    } else if (
+      connection.connectionType === CONNECTION_TYPE.INTERNATIONAL_TO_DOMESTIC
+      && connection.status === CONNECTION_DURATION.TIGHT
+    ) {
+      risk += 35;
+      notes.push(`${label} international-to-domestic connection under ${connection.minimumMinutes}m`);
+    }
   }
 
   if (budget.hardMax && estimatedTotalCost > budget.hardMax) {

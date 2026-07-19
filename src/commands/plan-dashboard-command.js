@@ -4,6 +4,7 @@ import { writePlanDashboard } from "../dashboard.js";
 import { buildRefreshPlan } from "../refresh-plan.js";
 import { compareSnapshots } from "../snapshot-compare.js";
 import { latestSnapshots, listSnapshots, loadSnapshot } from "../snapshots.js";
+import { loadSnapshotPriceHistory } from "../snapshot-history.js";
 import { loadPlan, loadPlanTrip } from "../plans.js";
 import { refreshPlanListDashboard, ROOT, usage } from "../cli-support.js";
 
@@ -39,10 +40,11 @@ export async function runPlanSnapshots(planPath) {
 
 export async function runPlanDashboard(planPath, flags = {}) {
   const { absolute, plan, planDir, trip } = await loadPlanTrip(planPath, ROOT);
-  const snapshots = await latestSnapshots(planDir, 10);
+  const snapshots = await latestSnapshots(planDir, 2);
+  const snapshotHistory = await loadSnapshotPriceHistory(planDir, plan);
   const refreshPlan = await buildRefreshPlan({ plan, trip, mode: flags.mode, root: ROOT });
   const outputPath = path.resolve(ROOT, flags.out ?? path.join("outputs", `${plan.id}.dashboard.html`));
-  await writePlanDashboard({ plan, planDir, trip, snapshots, refreshPlan, outputPath });
+  await writePlanDashboard({ plan, planDir, trip, snapshots, snapshotHistory, refreshPlan, outputPath });
   await refreshPlanListDashboard(path.join(ROOT, "outputs", "plans.dashboard.html"));
   console.log(`Wrote ${outputPath}`);
   console.log(`Updated ${path.join(ROOT, "outputs", "plans.dashboard.html")}`);

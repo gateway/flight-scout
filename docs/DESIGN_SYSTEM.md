@@ -38,7 +38,7 @@ Highlight only decision-changing phrases. Do not increase normal paragraph size 
 
 ## Wording Rules
 
-- Say `extra travel first`, `get to Bangkok`, or `starts in Bangkok` instead of `positioning`.
+- Say `extra travel first`, `get to the gateway city`, or `starts in the gateway city` instead of `positioning`.
 - Say `flight detail` or `route evidence`, not `decision evidence`.
 - Say `refresh check` or `refresh plan`, not `preview` in generated HTML.
 - Do not render `Compact report`.

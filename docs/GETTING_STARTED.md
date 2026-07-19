@@ -5,12 +5,12 @@ This guide walks through the public workflow for creating a flight plan, reviewi
 ## 1. Install
 
 ```bash
-git clone <your-repo-url>
-cd flight-research-agent
+git clone https://github.com/gateway/flight-scout.git
+cd flight-scout
 npm run setup
 ```
 
-That creates a project-local Python virtual environment in `.venv`, installs the one direct Python dependency (`flights==0.9.0`), and writes `.env`.
+That creates a project-local Python virtual environment in `.venv`, installs the pinned flight-search runtime, and writes `.env`.
 
 Optional Codex skill install:
 
@@ -85,6 +85,9 @@ Expected output:
 - missing details, if any
 
 If the system cannot resolve the city, airport, dates, trip type, or budget constraints, it should ask concise clarification questions instead of guessing.
+Dates without a year use their next future occurrence. Enter flight budgets in USD; other currencies trigger a clarification because the app does not perform exchange-rate conversion.
+
+Provider searches are one-way. Stopovers, alternate starts, and round trips are assembled locally from those atomic results. A round-trip plan needs both departure and return windows, and its dashboard clearly treats the two directions as separately booked tickets rather than one protected itinerary.
 
 ## 4. Create A Saved Plan
 

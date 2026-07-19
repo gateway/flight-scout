@@ -9,8 +9,7 @@ import { PROVIDERS } from "./providers/provider-types.js";
 export async function executeRefreshPlan({ refreshPlan, trip, root = process.cwd(), refresh = false, maxRuns = null, onEvent = () => {} }) {
   await mkdir(path.join(root, "cache"), { recursive: true });
   const runnable = Number.isFinite(maxRuns) ? refreshPlan.calls.slice(0, maxRuns) : refreshPlan.calls;
-  let liveRuns = 0;
-  let fliRuns = 0;
+  let completedProviderSearches = 0;
   let failedRuns = 0;
   for (const [index, call] of runnable.entries()) {
     if (call.cache.fresh && !refresh) {
@@ -19,7 +18,7 @@ export async function executeRefreshPlan({ refreshPlan, trip, root = process.cwd
     }
     onEvent({ type: "run-start", index, total: runnable.length, call });
     const results = await runProviderPlan({ call, trip, refreshPlan, refresh, onEvent, index, total: runnable.length });
-    fliRuns += results.filter((result) => result.providerId === PROVIDERS.FLI && result.ok).length;
+    completedProviderSearches += results.filter((result) => result.ok).length;
     failedRuns += results.filter((result) => !result.ok).length;
     if (index < runnable.length - 1) {
       const delay = trip.rules?.requestDelayMs ?? refreshPlan.requestDelayMs ?? 5000;
@@ -28,8 +27,7 @@ export async function executeRefreshPlan({ refreshPlan, trip, root = process.cwd
     }
   }
   return {
-    liveRuns: 0,
-    fliRuns,
+    completedProviderSearches,
     failedRuns,
     cacheHits: runnable.filter((call) => call.cache.fresh && !refresh).length,
     selectedRuns: runnable.length,

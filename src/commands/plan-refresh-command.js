@@ -8,6 +8,8 @@ import { executeRefreshPlan } from "../refresh-runner.js";
 import { rankFlights } from "../scorer.js";
 import { createSnapshot, importRankedSnapshot } from "../snapshots.js";
 import { refreshSpendSummaryText } from "../dashboard-refresh-ux.js";
+import { loadSavedPlans, writeAppIndex, writePlanListDashboard } from "../plan-list-dashboard.js";
+import { writeRefreshLowdown } from "../refresh-summary.js";
 import {
   aggregateCachedFlights,
   enrichFlights,
@@ -55,7 +57,10 @@ export async function runPlanRefresh(planPath, flags) {
       root: ROOT,
       refresh: flags.refresh,
       maxRuns: flags.maxRuns,
-      onEvent: logRefreshEvent
+      onEvent: (event) => {
+        logRefreshEvent(event);
+        flags.onEvent?.(event);
+      }
     });
   } catch (error) {
     const failurePath = path.join(planDir, "last-refresh-error.json");
@@ -70,8 +75,8 @@ export async function runPlanRefresh(planPath, flags) {
   }
 
   if (runSummary.skippedByMaxRuns > 0) console.log(`${runSummary.skippedByMaxRuns} searches skipped by --max-runs.`);
-  console.log(`Searches used: ${runSummary.fliRuns ?? 0} fresh local search${(runSummary.fliRuns ?? 0) === 1 ? "" : "es"}, ${runSummary.cacheHits} saved-data hit${runSummary.cacheHits === 1 ? "" : "s"}.`);
-  if ((runSummary.fliRuns + runSummary.liveRuns + runSummary.cacheHits) === 0 && runSummary.failedRuns > 0) {
+  console.log(`Searches used: ${runSummary.completedProviderSearches} fresh local search${runSummary.completedProviderSearches === 1 ? "" : "es"}, ${runSummary.cacheHits} saved-data hit${runSummary.cacheHits === 1 ? "" : "s"}.`);
+  if ((runSummary.completedProviderSearches + runSummary.cacheHits) === 0 && runSummary.failedRuns > 0) {
     throw new Error(`Refresh produced no usable flight data. ${runSummary.failedRuns} local search${runSummary.failedRuns === 1 ? "" : "es"} failed.`);
   }
 
@@ -81,12 +86,42 @@ export async function runPlanRefresh(planPath, flags) {
   const snapshot = await createSnapshot({
     planDir,
     plan,
-    refreshPlan: { ...refreshPlan, liveCallCount: runSummary.liveRuns, cacheHitCount: runSummary.cacheHits },
+    refreshPlan: { ...refreshPlan, cacheHitCount: runSummary.cacheHits },
     rankedFlights,
     source: "live-refresh"
   });
   console.log(`Created snapshot ${snapshot.meta.id} with ${rankedFlights.length} ranked options.`);
   await runPlanDashboard(absolute, flags);
+}
+
+export async function runPlanRefreshSummary(flags, dependencies = {}) {
+  const {
+    root = ROOT,
+    loadPlans = loadSavedPlans,
+    refreshPlan = runPlanRefresh,
+    writePlanList = writePlanListDashboard,
+    writeIndex = writeAppIndex,
+    writeLowdown = writeRefreshLowdown,
+    log = console.log
+  } = dependencies;
+  const mode = flags.mode ?? "standard";
+  const plans = (await loadPlans(root)).filter((item) => item.status.active);
+  const refreshed = [];
+  for (const item of plans) {
+    await refreshPlan(item.planPath, { ...flags, mode, live: true, refresh: flags.refresh !== false });
+    refreshed.push({ planPath: item.planPath, mode, refresh: flags.refresh !== false });
+  }
+  const outputDir = path.join(root, "outputs");
+  await writePlanList({ root, outputPath: path.join(outputDir, "plans.dashboard.html") });
+  await writeIndex({ root, outputPath: path.join(root, "index.html"), dashboardPrefix: "outputs/" });
+  const refreshedPlans = await loadPlans(root);
+  const summary = await writeLowdown({ root, plans: refreshedPlans, refreshed });
+  log(`Wrote ${summary.outputPath}`);
+  if (summary.topOption) {
+    const flight = summary.topOption.flight;
+    log(`Top practical option: ${summary.topOption.plan.name}, ${flight.departureAirport} -> ${flight.arrivalAirport}.`);
+  }
+  return summary;
 }
 
 function logRefreshEvent(event) {

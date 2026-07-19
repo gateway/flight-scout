@@ -1,3 +1,5 @@
+import { classifyConnection, CONNECTION_DURATION } from "./connection-duration.js";
+
 export const VIABILITY = {
   RECOMMENDED: "recommended",
   WATCH: "watch",
@@ -16,6 +18,7 @@ export function viabilityRulesFrom({ trip = {}, plan = {} } = {}) {
     rejectTotalElapsedHoursOver: rules.rejectTotalElapsedHoursOver ?? preferences.rejectTotalElapsedHoursOver ?? 35,
     preferredDomesticConnectionMinutes: rules.preferredDomesticConnectionMinutes ?? preferences.connectionMinimums?.domesticMinutes ?? 90,
     preferredInternationalToDomesticConnectionMinutes: rules.preferredInternationalToDomesticConnectionMinutes ?? preferences.connectionMinimums?.internationalToDomesticMinutes ?? 180,
+    connectionTypesByAirport: rules.connectionTypesByAirport ?? preferences.connectionTypesByAirport ?? {},
     hardMaxBudget: budget.hardMax ?? preferences.hardMaxBudget ?? null,
     softMaxBudget: budget.softMax ?? preferences.softMaxBudget ?? null,
     maxStops: preferences.maxStops ?? null
@@ -24,7 +27,9 @@ export function viabilityRulesFrom({ trip = {}, plan = {} } = {}) {
 
 export function classifyCandidate(candidate, rules = {}) {
   if (!candidate) return { status: VIABILITY.HIDDEN, reasons: ["missing candidate"] };
-  if (candidate.kind === "composed-stopover") return classifyComposedCandidate(candidate, rules);
+  if (candidate.kind === "composed-stopover" || candidate.kind === "composed-round-trip") {
+    return classifyComposedCandidate(candidate, rules);
+  }
 
   const reasons = [];
   const durationHours = (candidate.durationMinutes ?? Infinity) / 60;
@@ -52,9 +57,12 @@ export function classifyCandidate(candidate, rules = {}) {
     watchReasons.push(`long travel day over ${rules.maxSingleTravelDayHours ?? 26}h`);
   }
   for (const layover of candidate.layovers ?? []) {
-    const minimum = gatewayConnectionMinimum(layover, rules);
-    if (Number(layover.duration) < minimum) {
-      watchReasons.push(`${layover.id ?? layover.name ?? "connection"} under ${minimum}m`);
+    const connection = classifyConnection(layover, rules);
+    const label = layover.id ?? layover.name ?? "connection";
+    if (connection.status === CONNECTION_DURATION.UNKNOWN) {
+      watchReasons.push(`${label} connection ${connection.verification ?? "details"} needs verification`);
+    } else if (connection.status === CONNECTION_DURATION.TIGHT) {
+      watchReasons.push(`${label} under ${connection.minimumMinutes}m`);
     }
   }
   if (Number.isFinite(rules.softMaxBudget) && Number.isFinite(price) && price > rules.softMaxBudget) {
@@ -118,23 +126,28 @@ export function summarizeViability(candidates, rules = {}) {
 }
 
 function classifyComposedCandidate(candidate, rules) {
-  const inbound = classifyCandidate(candidate.inbound, rules);
-  const onward = classifyCandidate(candidate.onward, rules);
-  const hardReasons = [...inbound.reasons, ...onward.reasons].filter(Boolean);
-  if (inbound.status === VIABILITY.HARD_REJECT || onward.status === VIABILITY.HARD_REJECT) {
+  const [firstFlight, secondFlight] = candidate.kind === "composed-round-trip"
+    ? [candidate.outbound, candidate.returnFlight]
+    : [candidate.inbound, candidate.onward];
+  const first = classifyCandidate(firstFlight, { ...rules, hardMaxBudget: null, softMaxBudget: null });
+  const second = classifyCandidate(secondFlight, { ...rules, hardMaxBudget: null, softMaxBudget: null });
+  const hardReasons = [...first.reasons, ...second.reasons].filter(Boolean);
+  if (Number.isFinite(rules.hardMaxBudget) && candidate.totalCost > rules.hardMaxBudget) {
+    return { status: VIABILITY.HARD_REJECT, reasons: [`over $${rules.hardMaxBudget} hard budget`] };
+  }
+  if (first.status === VIABILITY.HARD_REJECT || second.status === VIABILITY.HARD_REJECT) {
     return { status: VIABILITY.HARD_REJECT, reasons: hardReasons };
   }
-  if (inbound.status === VIABILITY.HIDDEN || onward.status === VIABILITY.HIDDEN) {
-    return { status: VIABILITY.HIDDEN, reasons: hardReasons.length ? hardReasons : ["missing stopover leg data"] };
+  if (first.status === VIABILITY.HIDDEN || second.status === VIABILITY.HIDDEN) {
+    return { status: VIABILITY.HIDDEN, reasons: hardReasons.length ? hardReasons : ["missing composed leg data"] };
   }
-  if (inbound.status === VIABILITY.WATCH || onward.status === VIABILITY.WATCH) {
-    return { status: VIABILITY.WATCH, reasons: hardReasons };
+  const watchReasons = [
+    ...(first.status === VIABILITY.WATCH ? first.reasons : []),
+    ...(second.status === VIABILITY.WATCH ? second.reasons : [])
+  ];
+  if (Number.isFinite(rules.softMaxBudget) && candidate.totalCost > rules.softMaxBudget) {
+    watchReasons.push(`over $${rules.softMaxBudget} soft budget`);
   }
+  if (watchReasons.length) return { status: VIABILITY.WATCH, reasons: watchReasons };
   return { status: VIABILITY.RECOMMENDED, reasons: ["matches current trip rules"] };
-}
-
-function gatewayConnectionMinimum(layover, rules) {
-  return ["SEA", "SFO", "LAX", "PDX"].includes(layover.id)
-    ? rules.preferredInternationalToDomesticConnectionMinutes ?? 180
-    : rules.preferredDomesticConnectionMinutes ?? 90;
 }

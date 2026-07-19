@@ -1,1 +1,3 @@
 flights==0.9.0
+# flights 0.9.0 imports Click but does not declare it as a package dependency.
+click==8.3.1

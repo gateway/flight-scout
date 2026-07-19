@@ -1,7 +1,5 @@
 export function dashboardStyleSections() {
-  return `.pill.warn::before,
-.pill.bad::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: currentColor; margin-right: 7px; }
-.good { color: var(--good); }
+  return `.good { color: var(--good); }
 .warn { color: var(--warn); }
 .bad { color: var(--bad); }
 
@@ -208,5 +206,12 @@ summary { cursor: pointer; color: var(--accent); font-weight: 800; }
 .stopover-break {
   margin-top: 4px;
   padding: 12px 0 6px;
-  border-top: 1px solid var(--line);`;
+  border-top: 1px solid var(--line);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 860;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}`;
 }

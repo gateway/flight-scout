@@ -1,7 +1,8 @@
 import { addDays, dateRange } from "./dates.js";
+import { slugify } from "./strings.js";
 
-// Expands a saved trip definition into concrete one-way and multi-city FLI searches.
-// Keep this file provider-neutral; provider adapters translate the `input` shape as needed.
+// Expands a trip into route-analysis plans. Multi-segment plans describe composition only;
+// buildAtomicLegSearches derives the one-way work accepted by provider manifests.
 
 function powersetInOrder(items) {
   const sets = [[]];
@@ -20,12 +21,25 @@ function primaryAirport(group) {
   return group.airports[0];
 }
 
-function slug(value) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+function makeSearchId(parts) {
+  return slugify(parts.filter(Boolean).join("-"));
 }
 
-function makeSearchId(parts) {
-  return slug(parts.filter(Boolean).join("-"));
+function withRouteRole(group, routeRole, routeOrder) {
+  return {
+    ...group,
+    routeRole,
+    routeOrder
+  };
+}
+
+function gatewayNode(gateway, configuredGateways) {
+  return withRouteRole({
+    label: gateway,
+    airports: [gateway],
+    selectedNights: 0,
+    gateway: true
+  }, "gateway", configuredGateways.indexOf(gateway));
 }
 
 function expandNightChoices(stops) {
@@ -87,14 +101,12 @@ function googleFlightsSearchUrl(text) {
   return `https://www.google.com/travel/flights?${params.toString()}`;
 }
 
-function routeFamily({ origin, stops, gateway }) {
-  const labels = stops.map((stop) => stop.label);
-  if (gateway) return "gateway-split";
-  if (origin.label.includes("Bangkok start") && labels.includes("Tokyo")) return "bangkok-start-tokyo";
-  if (origin.label.includes("Bangkok start")) return "bangkok-start";
-  if (labels.includes("Bangkok") && labels.includes("Tokyo")) return "bangkok-plus-tokyo";
-  if (labels.includes("Tokyo")) return "tokyo-stopover";
-  if (labels.includes("Bangkok")) return "bangkok-stopover";
+function routeFamily({ origin, stops }) {
+  if (stops.some((stop) => stop.routeRole === "gateway")) return "gateway-split";
+  const stopoverCount = stops.filter((stop) => stop.routeRole === "intentional-stopover").length;
+  if (origin.routeRole === "alternate-start" && stopoverCount > 0) return "alternate-start-stopover";
+  if (stopoverCount > 1) return "multiple-stopovers";
+  if (stopoverCount === 1) return "stopover";
   return "direct-ish";
 }
 
@@ -119,12 +131,24 @@ function baseProviderInput(trip, override) {
 }
 
 export function buildRoutePlans(trip) {
+  if (trip.tripType === "round-trip") return buildRoundTripRoutePlans(trip);
+  return buildOneWayRoutePlans(trip);
+}
+
+function buildOneWayRoutePlans(trip) {
   const plans = [];
   const starts = dateRange(trip.departureWindow.start, trip.departureWindow.end);
-  const origins = [trip.origin, ...(trip.alternateStarts ?? [])];
+  const origins = [
+    withRouteRole(trip.origin, "primary-origin", 0),
+    ...(trip.alternateStarts ?? []).map((origin, index) => (
+      withRouteRole(origin, "alternate-start", index + 1)
+    ))
+  ];
   const optionalStops = trip.routeModes?.includeOptionalStopCombinations === false
     ? []
-    : trip.optionalStops ?? [];
+    : (trip.optionalStops ?? []).map((stop, index) => (
+      withRouteRole(stop, "intentional-stopover", index)
+    ));
 
   for (const origin of origins) {
     for (const startDate of starts) {
@@ -151,13 +175,13 @@ export function buildRoutePlans(trip) {
 
           if (trip.routeModes?.includeGatewaySplit !== false) {
             for (const gateway of trip.gatewayAirports ?? []) {
-              const gatewayNode = { label: gateway, airports: [gateway], selectedNights: 0, gateway: true };
-              const gatewaySegments = buildSegments(origin, [...stops, gatewayNode], trip.destination, startDate);
-              const gatewayStops = [...stops, gatewayNode];
+              const gatewayStop = gatewayNode(gateway, trip.gatewayAirports ?? []);
+              const gatewaySegments = buildSegments(origin, [...stops, gatewayStop], trip.destination, startDate);
+              const gatewayStops = [...stops, gatewayStop];
               plans.push({
                 id: makeSearchId([origin.label, stopLabel, "gateway", gateway, trip.destination.label, startDate]),
                 kind: "gateway-split",
-                routeFamily: routeFamily({ origin, stops, gateway: true }),
+                routeFamily: routeFamily({ origin, stops: gatewayStops }),
                 priority: priorityForPlan({ stops, gateway: true }),
                 title: `${origin.label} -> ${trip.destination.label} via ${gateway}, ${stopLabel}, depart ${startDate}`,
                 startDate,
@@ -170,27 +194,53 @@ export function buildRoutePlans(trip) {
           }
         }
       }
-
-      if (trip.routeModes?.includeGatewaySplit !== false && optionalStops.length === 0) {
-        for (const gateway of trip.gatewayAirports ?? []) {
-          const gatewayNode = { label: gateway, airports: [gateway], selectedNights: 0, gateway: true };
-          const segments = buildSegments(origin, [gatewayNode], trip.destination, startDate);
-          plans.push({
-            id: makeSearchId([origin.label, "gateway", gateway, trip.destination.label, startDate]),
-            kind: "gateway-split",
-            title: `${origin.label} -> ${gateway} -> ${trip.destination.label}, depart ${startDate}`,
-            startDate,
-            stops: [gatewayNode],
-            segments,
-            input: providerInputForSegments(trip, segments),
-            googleFlightsUrl: googleFlightsQuery(segments)
-          });
-        }
-      }
     }
   }
 
   return dedupePlans(plans);
+}
+
+// FLI accepts one travel direction per call. Round trips therefore remain two
+// explicit one-way date sets; composition happens only after results are saved.
+function buildRoundTripRoutePlans(trip) {
+  if (!trip.returnWindow?.start || !trip.returnWindow?.end) {
+    throw new Error("Round-trip planning requires a return date window.");
+  }
+  return [
+    ...directionalDirectPlans({
+      trip,
+      direction: "outbound",
+      from: withRouteRole(trip.origin, "primary-origin", 0),
+      to: trip.destination,
+      window: trip.departureWindow
+    }),
+    ...directionalDirectPlans({
+      trip,
+      direction: "return",
+      from: withRouteRole(trip.destination, "return-origin", 0),
+      to: trip.origin,
+      window: trip.returnWindow
+    })
+  ];
+}
+
+function directionalDirectPlans({ trip, direction, from, to, window }) {
+  return dateRange(window.start, window.end).map((date) => {
+    const segments = buildSegments(from, [], to, date);
+    return {
+      id: makeSearchId([direction, from.label, to.label, date]),
+      kind: "one-way",
+      direction,
+      routeFamily: `round-trip-${direction}`,
+      priority: "fastest",
+      title: `${from.label} -> ${to.label}, ${direction}, depart ${date}`,
+      startDate: date,
+      stops: [],
+      segments,
+      input: providerInputForSegments(trip, segments),
+      googleFlightsUrl: googleFlightsQuery(segments)
+    };
+  });
 }
 
 function sharesAirport(a, b) {
@@ -209,6 +259,7 @@ export function buildAtomicLegSearches(trip, routePlans) {
       searches.push({
         id: makeSearchId(["one-way", airportString(segment.from), airportString(segment.to), segment.date]),
         kind: "one-way",
+        ...(plan.direction ? { direction: plan.direction } : {}),
         title: `${airportString(segment.from)} -> ${airportString(segment.to)} on ${segment.date}`,
         segments: [segment],
         input: baseProviderInput(trip, {

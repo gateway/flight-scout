@@ -1,16 +1,14 @@
 import { escapeHtml } from "./html-utils.js";
+import { humanizeRefreshReasons } from "./refresh-plan-presentation.js";
 
 export function refreshSpendSummaryText(refreshPlan) {
   if (!refreshPlan) return "No refresh check is loaded yet.";
   const fliCalls = refreshPlan.fliCallCount ?? 0;
   const selectedCount = refreshPlan.selectedCallCount ?? refreshPlan.calls?.length ?? 0;
-  if (refreshPlan.liveCallCount === 0 && fliCalls === 0) {
+  if (fliCalls === 0) {
     return `All ${selectedCount} selected searches are still fresh in cache.`;
   }
-  if (refreshPlan.liveCallCount === 0) {
-    return `I would run ${fliCalls} FLI search${fliCalls === 1 ? "" : "es"}.`;
-  }
-  return `I would run ${fliCalls} FLI search${fliCalls === 1 ? "" : "es"}.`;
+  return `I would run ${fliCalls} local search${fliCalls === 1 ? "" : "es"}.`;
 }
 
 export function renderRefreshDecisionCostCheck(refreshPlan) {
@@ -24,7 +22,7 @@ export function renderRefreshDecisionCostCheck(refreshPlan) {
     <p class="small">${escapeHtml(refreshPlan.explanation)} ${escapeHtml(reasonSummary(calls))}</p>
     <div class="grid">
       ${refreshCallGroup(
-        "FLI searches",
+        "Local searches",
         liveCalls,
         0
       )}
@@ -48,12 +46,12 @@ function refreshCallGroup(label, calls) {
 function refreshCallItem(call) {
   return `<div class="history-item">
     <strong>${escapeHtml(call.title ?? call.id)}</strong>
-    <div class="small">${escapeHtml((call.refreshReasons ?? []).join(", ") || "selected for this refresh")} · ${escapeHtml(call.cache?.status ?? "unknown")}</div>
+    <div class="small">${escapeHtml(humanizeRefreshReasons(call.refreshReasons).join(", "))} · ${escapeHtml(call.cache?.status ?? "unknown")}</div>
   </div>`;
 }
 
 function reasonSummary(calls) {
-  const reasons = [...new Set(calls.flatMap((call) => call.refreshReasons ?? []))];
+  const reasons = humanizeRefreshReasons(calls.flatMap((call) => call.refreshReasons ?? []));
   if (!reasons.length) return "The selected searches are the current best candidates for this plan.";
   return `Selected because: ${reasons.slice(0, 4).join("; ")}.`;
 }

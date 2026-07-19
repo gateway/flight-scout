@@ -1,50 +1,33 @@
-const TOKYO_AIRPORTS = new Set(["HND", "NRT"]);
-const BANGKOK_AIRPORTS = new Set(["BKK", "DMK"]);
-
-export const BATCHES = {
+const GENERIC_BATCHES = {
   fastest: {
-    description: "Direct-ish and lowest-segment routes from CNX/BKK to RDM.",
+    description: "Lowest-segment routes without a declared stopover.",
     select: (plans) => sortFastest(plans.filter((plan) => (
-      (plan.routeFamily === "direct-ish" && plan.segments.length === 1) ||
-      (plan.routeFamily === "bangkok-start" && plan.segments.length === 1) ||
-      (plan.kind === "gateway-split" && plan.stops.length <= 1)
+      plan.segments.length === 1 || (hasGateway(plan) && !hasDeclaredStopover(plan))
     )))
   },
   "fewest-layovers": {
     description: "No intentional stopover, then gateway split routes with the fewest planned segments.",
     select: (plans) => sortByDateAndComplexity(plans.filter((plan) => !hasIntentionalStopover(plan)))
   },
-  "skip-tokyo": {
-    description: "Routes that do not intentionally stop in Tokyo.",
-    select: (plans) => sortByDateAndComplexity(plans.filter((plan) => !touchesAirports(plan, TOKYO_AIRPORTS)))
+  "intentional-stopover": {
+    description: "Routes with at least one declared overnight stopover.",
+    select: (plans) => sortByDateAndComplexity(plans.filter(hasIntentionalStopover))
   },
-  "tokyo-stopover": {
-    description: "Routes with an intentional one- or two-night Tokyo stopover.",
+  "one-night-stopover": {
+    description: "Routes with exactly one planned stopover night and no gateway split.",
     select: (plans) => sortByDateAndComplexity(plans.filter((plan) => (
-      plan.stops.some((stop) => stop.label === "Tokyo" && stop.selectedNights > 0)
+      !hasGateway(plan) && plannedStopoverNights(plan) === 1
     )))
   },
-  "tokyo-core": {
-    description: "Core one-night Tokyo comparison without gateway-split noise.",
+  "alternate-start": {
+    description: "Routes that begin at a declared alternate origin.",
     select: (plans) => sortByDateAndComplexity(plans.filter((plan) => (
-      plan.kind !== "gateway-split" &&
-      ["tokyo-stopover", "bangkok-start-tokyo"].includes(plan.routeFamily) &&
-      plan.stops.some((stop) => stop.label === "Tokyo" && stop.selectedNights === 1)
-    )))
-  },
-  "bangkok-start": {
-    description: "Assume the long-haul search starts from Bangkok.",
-    select: (plans) => sortByDateAndComplexity(plans.filter((plan) => plan.segments[0]?.from.label.includes("Bangkok start")))
-  },
-  "bangkok-stopover": {
-    description: "CNX to Bangkok, overnight, then long-haul.",
-    select: (plans) => sortByDateAndComplexity(plans.filter((plan) => (
-      plan.stops.some((stop) => stop.label === "Bangkok" && stop.selectedNights > 0)
+      plan.segments[0]?.from.routeRole === "alternate-start"
     )))
   },
   "gateway-compare": {
-    description: "Force comparison through SEA, SFO, LAX, and PDX.",
-    select: (plans) => sortByDateAndComplexity(plans.filter((plan) => plan.kind === "gateway-split"))
+    description: "Compare routes through each declared gateway in user priority order.",
+    select: (plans) => sortByDateAndComplexity(plans.filter(hasGateway))
   },
   "cheap-explorer": {
     description: "Broader lower-price exploration after fastest routes are known.",
@@ -56,13 +39,29 @@ export const BATCHES = {
   }
 };
 
+// Hidden compatibility inputs keep old saved plans readable without advertising
+// personal-route terminology to new plans or public batch discovery.
+const LEGACY_BATCH_ALIASES = {
+  "skip-tokyo": legacyBatch("Omit the second declared stopover.", (plan) => !hasStopoverAtOrder(plan, 1)),
+  "tokyo-stopover": legacyBatch("Use the second declared stopover.", (plan) => hasOvernightStopoverAtOrder(plan, 1)),
+  "tokyo-core": legacyBatch("Use one night at the second declared stopover without a gateway.", (plan) => (
+    hasOvernightStopoverAtOrder(plan, 1, 1) && !hasGateway(plan)
+  )),
+  "bangkok-start": legacyBatch("Begin at a declared alternate origin.", (plan) => (
+    plan.segments[0]?.from.routeRole === "alternate-start"
+  )),
+  "bangkok-stopover": legacyBatch("Use the first declared stopover.", (plan) => hasOvernightStopoverAtOrder(plan, 0))
+};
+
+export const BATCHES = GENERIC_BATCHES;
+
 export function listBatches() {
   return Object.entries(BATCHES).map(([name, batch]) => ({ name, description: batch.description }));
 }
 
 export function selectBatch(plans, batchName) {
   if (!batchName) return plans;
-  const batch = BATCHES[batchName];
+  const batch = BATCHES[batchName] ?? LEGACY_BATCH_ALIASES[batchName];
   if (!batch) {
     const known = Object.keys(BATCHES).join(", ");
     throw new Error(`Unknown batch "${batchName}". Known batches: ${known}`);
@@ -71,14 +70,37 @@ export function selectBatch(plans, batchName) {
 }
 
 function hasIntentionalStopover(plan) {
-  return plan.stops.some((stop) => !stop.gateway && stop.selectedNights > 0);
+  return plan.stops.some((stop) => isIntentionalStopover(stop) && stop.selectedNights > 0);
 }
 
-function touchesAirports(plan, airports) {
-  return plan.segments.some((segment) => (
-    segment.from.airports.some((airport) => airports.has(airport)) ||
-    segment.to.airports.some((airport) => airports.has(airport))
+function hasDeclaredStopover(plan) {
+  return plan.stops.some(isIntentionalStopover);
+}
+
+function hasGateway(plan) {
+  return plan.stops.some((stop) => stop.routeRole === "gateway" || stop.gateway === true);
+}
+
+function isIntentionalStopover(stop) {
+  if (stop.routeRole) return stop.routeRole === "intentional-stopover";
+  return stop.gateway !== true;
+}
+
+function hasStopoverAtOrder(plan, routeOrder) {
+  return plan.stops.some((stop) => isIntentionalStopover(stop) && stop.routeOrder === routeOrder);
+}
+
+function hasOvernightStopoverAtOrder(plan, routeOrder, selectedNights = null) {
+  return plan.stops.some((stop) => isIntentionalStopover(stop) && stop.routeOrder === routeOrder && (
+    selectedNights === null ? stop.selectedNights > 0 : stop.selectedNights === selectedNights
   ));
+}
+
+function legacyBatch(description, predicate) {
+  return {
+    description: `Compatibility alias: ${description}`,
+    select: (plans) => sortByDateAndComplexity(plans.filter(predicate))
+  };
 }
 
 function sortByDateAndComplexity(plans) {
@@ -86,6 +108,7 @@ function sortByDateAndComplexity(plans) {
     a.startDate.localeCompare(b.startDate) ||
     a.segments.length - b.segments.length ||
     plannedStopoverNights(a) - plannedStopoverNights(b) ||
+    originOrder(a) - originOrder(b) ||
     gatewayOrder(a) - gatewayOrder(b) ||
     a.id.localeCompare(b.id)
   ));
@@ -102,18 +125,17 @@ function sortFastest(plans) {
 }
 
 function originOrder(plan) {
-  const origin = plan.segments[0]?.from.label ?? "";
-  if (origin.includes("Bangkok")) return 0;
-  if (origin.includes("Chiang Mai")) return 1;
-  return 2;
+  const origin = plan.segments[0]?.from;
+  return Number.isInteger(origin?.routeOrder) ? origin.routeOrder : Number.MAX_SAFE_INTEGER;
 }
 
 function plannedStopoverNights(plan) {
-  return plan.stops.reduce((sum, stop) => sum + (stop.gateway ? 0 : stop.selectedNights ?? 0), 0);
+  return plan.stops.reduce((sum, stop) => (
+    sum + (isIntentionalStopover(stop) ? stop.selectedNights ?? 0 : 0)
+  ), 0);
 }
 
 function gatewayOrder(plan) {
-  const order = ["SEA", "SFO", "LAX", "PDX"];
-  const gateway = plan.stops.find((stop) => stop.gateway)?.airports?.[0];
-  return gateway ? order.indexOf(gateway) : -1;
+  const gateway = plan.stops.find((stop) => stop.routeRole === "gateway" || stop.gateway);
+  return Number.isInteger(gateway?.routeOrder) ? gateway.routeOrder : Number.MAX_SAFE_INTEGER;
 }

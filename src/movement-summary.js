@@ -47,6 +47,14 @@ export function movementRead(comparison) {
     };
   }
   const counts = movementCounts(comparison);
+  if (comparison.previousOptionCount === 0 && counts.newOptions > 0) {
+    const unit = counts.newOptions === 1 ? "option" : "options";
+    return {
+      label: "First full results",
+      body: `First full results for this plan. ${counts.newOptions} ${unit} saved as the baseline for future price comparison.`,
+      tone: "info"
+    };
+  }
   const movementTotal = counts.cheaper + counts.higher;
   if (counts.cheaper > counts.higher * 1.5 && counts.cheaper > 0) {
     return {

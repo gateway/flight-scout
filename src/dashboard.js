@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { compareSnapshots } from "./snapshot-compare.js";
 import { analyzeDecision, worthIt } from "./decision-analysis.js";
-import { escapeAttr, escapeHtml, formatDateTime, money } from "./html-utils.js";
+import { escapeHtml, formatDateTime, money } from "./html-utils.js";
 import { renderPageShell } from "./dashboard-shell.js";
 import { createPageRenderers } from "./dashboard-pages.js";
 import { bestChoiceSentence, connectionPill, optionDate, renderAssumptions, renderCardHead, renderPainBreakdown } from "./dashboard-flight-components.js";
@@ -11,16 +11,19 @@ import { renderBudgetOpportunity, budgetAlternateStartOpportunity } from "./dash
 import { renderDateHighlights, renderPriceGraph, renderDateOpportunities } from "./dashboard-date-page.js";
 import { groupByRouteIdea, renderRoute } from "./dashboard-routes-page.js";
 import { renderRefreshStory } from "./dashboard-refresh-story.js";
+import { humanizeRefreshReasons } from "./refresh-plan-presentation.js";
 
-export async function writePlanDashboard({ plan, planDir, trip = null, snapshots = [], refreshPlan = null, outputPath }) {
+export async function writePlanDashboard({ plan, planDir, trip = null, snapshots = [], snapshotHistory = null, refreshPlan = null, outputPath }) {
   const [current, previous] = snapshots;
   const comparison = compareSnapshots(current, previous);
   const ranked = current?.rankedFlights ?? [];
   const routeGroups = groupByRouteIdea(plan, ranked);
   const analysis = analyzeDecision({ plan, trip, routeGroups, current, refreshPlan });
-  analysis.snapshotHistory = snapshots.map((snapshot) => snapshot.meta);
+  analysis.snapshotHistory = snapshotHistory?.snapshots ?? snapshots.map((snapshot) => snapshot.meta);
+  analysis.priceHistory = snapshotHistory ?? { snapshotCount: snapshots.length, routes: [] };
   const pages = planPagePaths(plan, outputPath);
-  const context = { plan, current, comparison, routeGroups, analysis, refreshPlan, trip, pages };
+  const planPath = `plans/${path.basename(planDir)}/plan.json`;
+  const context = { plan, planPath, current, comparison, routeGroups, analysis, refreshPlan, trip, pages };
   const html = render(context, "decision");
   await mkdir(path.dirname(outputPath), { recursive: true });
   await writeFile(outputPath, html);
@@ -78,8 +81,8 @@ function renderSnapshotHistory(history) {
     <summary>Refresh history</summary>
     <div class="history-list">${history.map((item) => `<div class="history-item">
       <strong>${escapeHtml(formatDateTime(item.createdAt))}</strong>
-      <div class="small">${escapeHtml(item.source ?? "snapshot")} · ${escapeHtml(item.refresh?.mode ?? "import")} · ${item.refresh?.fliCallCount ?? item.refresh?.liveCallCount ?? 0} selected FLI searches · ${item.refresh?.cacheHitCount ?? 0} cache hits</div>
-      <div class="small">${item.summary?.completeOptions ?? 0} complete options from ${item.summary?.totalOptions ?? 0} total. <a href="${escapeAttr(snapshotHref(item))}">Open snapshot</a></div>
+      <div class="small">${escapeHtml(item.source ?? "snapshot")} · ${escapeHtml(item.refresh?.mode ?? "import")} · ${item.refresh?.fliCallCount ?? item.refresh?.liveCallCount ?? 0} selected local searches · ${item.refresh?.cacheHitCount ?? 0} cache hits</div>
+      <div class="small">${item.summary?.completeOptions ?? 0} complete options from ${item.summary?.totalOptions ?? 0} total.</div>
     </div>`).join("")}</div>
   </details>`;
 }
@@ -87,12 +90,8 @@ function renderSnapshotHistory(history) {
 function renderRefreshCallDetail(refreshPlan) {
   return `<div class="history-list">${(refreshPlan.calls ?? []).map((call) => `<div class="history-item">
     <strong>${escapeHtml(call.id)}</strong>
-    <div class="small">${escapeHtml(call.cache.status)} · ${escapeHtml((call.refreshReasons ?? []).join(", ") || "refresh candidate")}</div>
+    <div class="small">${escapeHtml(call.cache.status)} · ${escapeHtml(humanizeRefreshReasons(call.refreshReasons).join(", "))}</div>
   </div>`).join("")}</div>`;
-}
-
-function snapshotHref(item) {
-  return `../plans/${item.planId}/snapshots/${item.id}/snapshot.json`;
 }
 
 function renderDecisionSummary(analysis) {

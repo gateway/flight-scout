@@ -1,14 +1,38 @@
-import { readdir, readFile } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 
 const root = process.cwd();
-const ignoredDirs = new Set([".git", ".venv", "cache", "node_modules", "outputs", "plans", "trips", "work"]);
 const scannedExtensions = new Set([".js", ".json", ".md", ".py", ".txt", ".yaml", ".yml"]);
 
-const requiredGitignoreEntries = [".env", ".venv/", "cache/", "outputs/", "plans/", "trips/", "work/"];
+const requiredGitignoreEntries = [
+  ".env",
+  ".venv/",
+  ".playwright-cli/",
+  "cache/",
+  "outputs/",
+  "plans/",
+  "trips/",
+  "work/",
+  "docs/DASHBOARD_COHERENCE_SPEC.md",
+  "docs/engineering/"
+];
 const blockedTerms = ["apify", "legacy report", "provider-compare", "npm run report", "npm run search", "spending money", "paid scan"];
 const publicReadmeBlockedTerms = ["/Users/", ...blockedTerms];
 const publicUserDocs = ["README.md", "docs/GETTING_STARTED.md", "docs/CODEX_SKILL_USAGE.md", "docs/EXAMPLE_PROMPTS.md"];
+const protectedTrackedRoots = [
+  ".venv/",
+  ".playwright-cli/",
+  "cache/",
+  "docs/engineering/",
+  "node_modules/",
+  "outputs/",
+  "plans/",
+  "trips/",
+  "work/"
+];
+const protectedTrackedFiles = new Set(["index.html"]);
+const protectedTrackedSuffixes = [".dashboard.html", ".dates.html", ".routes.html", ".refresh.html"];
 
 const findings = [];
 
@@ -16,22 +40,32 @@ function addFinding(file, message) {
   findings.push(`${file}: ${message}`);
 }
 
-async function walk(dir, files = []) {
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    if (entry.name.startsWith(".") && entry.name !== ".env.example" && entry.name !== ".gitignore") {
-      if (ignoredDirs.has(entry.name)) continue;
-    }
-    if (entry.isDirectory()) {
-      if (ignoredDirs.has(entry.name)) continue;
-      await walk(path.join(dir, entry.name), files);
-      continue;
-    }
-    const file = path.join(dir, entry.name);
-    if (scannedExtensions.has(path.extname(file)) || entry.name === ".env.example" || entry.name === ".gitignore") {
-      files.push(file);
-    }
+function gitFiles(args, description) {
+  try {
+    return execFileSync("git", ["ls-files", "-z", ...args], { cwd: root, encoding: "utf8" })
+      .split("\0")
+      .filter(Boolean);
+  } catch (error) {
+    addFinding(".git", `unable to inspect ${description} (${error.message})`);
+    return [];
   }
-  return files;
+}
+
+function trackedFiles() {
+  return gitFiles([], "tracked files");
+}
+
+function publishableFiles() {
+  return gitFiles(["--cached", "--others", "--exclude-standard"], "publishable files")
+    .filter((relative) => scannedExtensions.has(path.extname(relative))
+      || relative === ".env.example"
+      || relative === ".gitignore");
+}
+
+function isProtectedTrackedFile(relative) {
+  const environmentFile = relative === ".env"
+    || (relative.startsWith(".env.") && relative !== ".env.example");
+  return environmentFile || protectedTrackedFiles.has(relative);
 }
 
 function isAllowedSensitiveExample(relative, text) {
@@ -39,13 +73,67 @@ function isAllowedSensitiveExample(relative, text) {
     || relative === "scripts/release-audit.mjs";
 }
 
+async function auditServerSafety() {
+  const serverFile = "src/local-server.js";
+  const serverSource = await readFile(path.join(root, serverFile), "utf8");
+  if (!/process\.env\.HOST\s*\?\?\s*["']127\.0\.0\.1["']/.test(serverSource)) {
+    addFinding(serverFile, "normal startup must default to the loopback host 127.0.0.1");
+  }
+  if (!/allowStateChangingRequest\s*\(\s*request\s*,\s*response\s*\)/.test(serverSource)) {
+    addFinding(serverFile, "state-changing request guard must remain on the server request path");
+  }
+  if (!/servePublicStatic\s*\(\s*\{/.test(serverSource)) {
+    addFinding(serverFile, "constrained static handler must remain on the server request path");
+  }
+
+  const staticFile = "src/server-static.js";
+  const staticSource = await readFile(path.join(root, staticFile), "utf8");
+  const extensionBlock = staticSource.match(/OUTPUT_EXTENSIONS\s*=\s*new Set\s*\(\s*\[([\s\S]*?)\]\s*\)/)?.[1];
+  if (!extensionBlock) {
+    addFinding(staticFile, "browser output extension allowlist must remain explicit");
+  } else if (/["']\.json["']/.test(extensionBlock)) {
+    addFinding(staticFile, "JSON must not be browser-served from generated outputs");
+  }
+  if (!/\brealpath\s*\(/.test(staticSource)) {
+    addFinding(staticFile, "realpath checks must remain for static-file symlink containment");
+  }
+  if (!/path\.relative\s*\(/.test(staticSource)) {
+    addFinding(staticFile, "relative path containment must remain for public static files");
+  }
+}
+
 const gitignore = await readFile(path.join(root, ".gitignore"), "utf8");
 for (const entry of requiredGitignoreEntries) {
   if (!gitignore.includes(entry)) addFinding(".gitignore", `missing required ignore entry ${entry}`);
 }
 
-for (const file of await walk(root)) {
-  const relative = path.relative(root, file);
+for (const relative of trackedFiles()) {
+  if (isProtectedTrackedFile(relative) || protectedTrackedRoots.some((prefix) => relative.startsWith(prefix))) {
+    addFinding(relative, "tracked protected path must be removed from the Git index");
+  }
+  if (protectedTrackedSuffixes.some((suffix) => relative.endsWith(suffix))) {
+    addFinding(relative, "tracked generated dashboard must be removed from the Git index");
+  }
+}
+
+for (const relative of publishableFiles()) {
+  const file = path.join(root, relative);
+  let fileStat;
+  try {
+    fileStat = await lstat(file);
+  } catch (error) {
+    if (error.code === "ENOENT") continue;
+    addFinding(relative, `unable to inspect publishable file (${error.message})`);
+    continue;
+  }
+  if (fileStat.isSymbolicLink()) {
+    addFinding(relative, "publishable symbolic links are not allowed");
+    continue;
+  }
+  if (!fileStat.isFile()) {
+    addFinding(relative, "publishable path is not a regular file");
+    continue;
+  }
   const text = await readFile(file, "utf8");
 
   if (!isAllowedSensitiveExample(relative, text) && (text.includes("/Users/evilone") || text.includes("/Users/"))) {
@@ -60,11 +148,20 @@ for (const file of await walk(root)) {
 }
 
 for (const relative of publicUserDocs) {
-  const text = await readFile(path.join(root, relative), "utf8");
+  let text;
+  try {
+    text = await readFile(path.join(root, relative), "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") continue;
+    addFinding(relative, `unable to inspect public documentation (${error.message})`);
+    continue;
+  }
   for (const term of publicReadmeBlockedTerms) {
     if (text.toLowerCase().includes(term.toLowerCase())) addFinding(relative, `public docs contain "${term}"`);
   }
 }
+
+await auditServerSafety();
 
 if (findings.length) {
   console.error("Release audit failed:");

@@ -17,9 +17,9 @@ export function renderCrossPlanSummary(activePlans, dashboardPrefix) {
 function crossPlanPicks(activePlans) {
   const byPlan = [];
   for (const item of activePlans) {
-    const summary = item.latest?.summary ?? {};
+    const summary = item.decision ?? {};
     const options = [];
-    for (const [kind, option] of [["Best balance", summary.balanced], ["Lowest price", summary.cheapest], ["Shortest travel time", summary.fastest]]) {
+    for (const [kind, option] of [["Best balance", summary.best], ["Lowest price", summary.cheapest], ["Shortest travel time", summary.fastest]]) {
       if (!option) continue;
       options.push({ kind, option, item, key: optionKey(option) });
     }
@@ -34,7 +34,7 @@ function renderCrossPlanPick({ kind, option, item }, dashboardPrefix) {
   const duration = option.duration ?? formatMinutes(option.durationMinutes) ?? "n/a";
   const date = optionDate(option) ?? dateOnly(option.departureTime);
   const dashboardHref = `${dashboardPrefix}${item.dashboardHref}`;
-  return `<article class="flight-card decision-card">
+  return `<article class="flight-card decision-card cross-plan-card">
     <div class="card-head">
       <div>
         <div class="label">${escapeHtml(kind)}</div>
@@ -49,12 +49,14 @@ function renderCrossPlanPick({ kind, option, item }, dashboardPrefix) {
       <span>${connectionSignal(option)}</span>
       <span>${coverageSignal(item)}</span>
     </div>
-    <div class="meta">
-      ${renderMovementRead(item.comparison)}
-    </div>
-    <div class="overview-action-stack">
-      ${planIconLink(`${dashboardHref}#best-current-choice`, "Open plan decision", "↗")}
-      ${planIconLink(`${dashboardPrefix}${item.plan.id}.dates.html`, "Open date compare", "▥")}
+    <div class="cross-plan-action-row">
+      <div class="meta cross-plan-movement">
+        ${renderMovementRead(item.comparison)}
+      </div>
+      <div class="overview-action-stack">
+        ${planIconLink(`${dashboardHref}#best-current-choice`, "Open plan decision", "↗")}
+        ${planIconLink(`${dashboardPrefix}${item.plan.id}.dates.html`, "Open date compare", "▥")}
+      </div>
     </div>
   </article>`;
 }

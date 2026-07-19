@@ -16,7 +16,7 @@ npm run setup
 npm run skill:install
 ```
 
-`npm run setup` creates a project-local Python virtual environment in `.venv`, installs the one direct Python dependency (`flights==0.9.0`), and writes `.env`.
+`npm run setup` creates a project-local Python virtual environment in `.venv`, installs the pinned flight-search runtime, and writes `.env`.
 
 `npm run skill:install` copies `skills/flight-plan-riffer` into your Codex skills folder:
 
@@ -59,6 +59,17 @@ Expected behavior:
 - It shows the exact routes and dates it will check.
 - It waits for confirmation before running local FLI searches.
 - After confirmation, Codex runs the app commands, refreshes the plan, regenerates dashboards, and can open the local dashboard when browser access is available.
+- When you provide a price target or total-time limit, the saved plan can show a local watch alert after a refreshed flight satisfies it.
+
+For an existing set of plans, use language like:
+
+> Use `$flight-plan-riffer`. Refresh all active flight plans with the latest data, rebuild the dashboards, and tell me what changed.
+
+The skill should map that to the fresh all-plan refresh path, then summarize the best practical option, cheapest option, fastest reasonable option, any new option worth opening, and whether prices mostly moved higher or lower.
+
+Saved watch targets are checked only when results are refreshed. Flight Scout does not run a background monitor or send external notifications.
+
+The skill can compare one-way travel, stopovers, alternate starts, and round trips. Round trips are built from independent outbound and return one-way searches, so the result must say that the tickets are booked separately and show both booking links. Provider-native multi-city searches remain unsupported.
 
 ## Local Codex App vs Cloud
 
@@ -81,6 +92,7 @@ npm run plan:new -- "Find one-way flights from Chiang Mai to Tokyo around August
 npm run plan:refresh-plan -- plans/<plan-id>/plan.json --mode standard
 npm run plan:refresh -- plans/<plan-id>/plan.json --mode standard --live
 npm run plan:dashboard -- plans/<plan-id>/plan.json --mode standard
+npm run plan:refresh-latest
 npm run plan:list-dashboard
 ```
 
