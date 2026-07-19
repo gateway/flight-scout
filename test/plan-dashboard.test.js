@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createPlanFromText, loadPlanTrip, validatePlan } from "../src/plans.js";
@@ -10,9 +10,9 @@ import { compareSnapshots } from "../src/snapshot-compare.js";
 import { writePlanDashboard } from "../src/dashboard.js";
 import { bestChoiceSentence, flightGoogleFlightsUrl, renderFlightDetailPanel } from "../src/dashboard-flight-components.js";
 import { signalizeText } from "../src/dashboard-signals.js";
+import { publicPlanTrip, writePublicPlanFixture } from "./fixtures/public-plan.js";
 
 const root = process.cwd();
-const planPath = "plans/flights-home-august-2026/plan.json";
 
 function sampleFlight(overrides = {}) {
   return {
@@ -55,13 +55,15 @@ function sampleLeg(overrides = {}) {
   };
 }
 
-test("saved plan loads and validates route ideas", async () => {
-  const { plan, trip } = await loadPlanTrip(planPath, root);
+test("saved plan loads and validates route ideas", async (context) => {
+  const fixtureRoot = await temporaryRoot(context);
+  const { planPath } = await writePublicPlanFixture(fixtureRoot);
+  const { plan, trip } = await loadPlanTrip(planPath, fixtureRoot);
   validatePlan(plan);
   assert.equal(plan.routeIdeas.length, 4);
-  assert.ok(plan.routeIdeas.some((route) => route.id === "chiang-mai-bangkok-redmond"));
+  assert.ok(plan.routeIdeas.some((route) => route.id === "lhr-dub-kef"));
   assert.equal(trip.tripType, "one-way");
-  assert.equal(trip.departureWindow.center, "2026-08-01");
+  assert.equal(trip.departureWindow.center, "2026-08-04");
 });
 
 test("dashboard signal helper highlights decision phrases without swallowing punctuation", () => {
@@ -71,9 +73,10 @@ test("dashboard signal helper highlights decision phrases without swallowing pun
   assert.ok(html.includes('<span class="text-signal text-signal-bad">tight connection</span>'));
 });
 
-test("refresh plan is provider-aware and exposes atomic decision searches", async () => {
-  const { plan, trip } = await loadPlanTrip(planPath, root);
-  const refreshPlan = await buildRefreshPlan({ plan, trip, mode: "light", root });
+test("refresh plan is provider-aware and exposes atomic decision searches", async (context) => {
+  const fixtureRoot = await temporaryRoot(context);
+  const { plan, trip } = publicPlanTrip();
+  const refreshPlan = await buildRefreshPlan({ plan, trip, mode: "light", root: fixtureRoot });
   assert.equal(refreshPlan.mode, "light");
   assert.ok(refreshPlan.selectedCallCount > 0);
   assert.equal(refreshPlan.selectedCallCount, refreshPlan.calls.length);
@@ -82,34 +85,46 @@ test("refresh plan is provider-aware and exposes atomic decision searches", asyn
   assert.ok(Number.isInteger(refreshPlan.fliCallCount));
   assert.ok(refreshPlan.calls.every((call) => call.input));
   assert.ok(refreshPlan.calls.every((call) => call.refreshReasons.length > 0));
-  assert.ok(refreshPlan.calls.some((call) => call.id === "one-way-hnd-nrt-rdm-2026-08-02"));
+  assert.ok(refreshPlan.calls.some((call) => call.id === "one-way-lhr-kef-2026-08-01"));
   assert.ok(refreshPlan.explanation.includes("decision"));
 });
 
-test("forced fli refresh counts fresh cache as planned provider work", async () => {
-  const { plan, trip } = await loadPlanTrip("plans/chiang-mai-to-bangkok-2026-08-01/plan.json", root);
-  const normal = await buildRefreshPlan({ plan, trip, mode: "standard", root });
-  const forced = await buildRefreshPlan({ plan, trip, mode: "standard", root, refresh: true });
-  assert.ok(forced.fliCallCount >= normal.fliCallCount);
+test("forced fli refresh counts fresh cache as planned provider work", async (context) => {
+  const fixtureRoot = await temporaryRoot(context);
+  const { plan, trip } = publicPlanTrip();
+  const initial = await buildRefreshPlan({ plan, trip, mode: "standard", root: fixtureRoot });
+  await mkdir(path.dirname(initial.calls[0].cacheFile), { recursive: true });
+  await writeFile(initial.calls[0].cacheFile, "{}");
+
+  const normal = await buildRefreshPlan({ plan, trip, mode: "standard", root: fixtureRoot });
+  const forced = await buildRefreshPlan({ plan, trip, mode: "standard", root: fixtureRoot, refresh: true });
+  assert.ok(forced.fliCallCount > normal.fliCallCount);
   assert.equal(forced.fliCallCount, forced.selectedCallCount);
   assert.equal(Object.hasOwn(forced, "liveCallCount"), false);
 });
 
 
-test("standard and deep refresh plans broaden coverage", async () => {
-  const { plan, trip } = await loadPlanTrip(planPath, root);
-  const standard = await buildRefreshPlan({ plan, trip, mode: "standard", root });
-  const targetedDeep = await buildRefreshPlan({ plan, trip, mode: "targeted-deep", root });
-  const deep = await buildRefreshPlan({ plan, trip, mode: "deep", root });
+test("standard and deep refresh plans broaden coverage", async (context) => {
+  const fixtureRoot = await temporaryRoot(context);
+  const { plan, trip } = publicPlanTrip();
+  const standard = await buildRefreshPlan({ plan, trip, mode: "standard", root: fixtureRoot });
+  const targetedDeep = await buildRefreshPlan({ plan, trip, mode: "targeted-deep", root: fixtureRoot });
+  const deep = await buildRefreshPlan({ plan, trip, mode: "deep", root: fixtureRoot });
   assert.ok(standard.selectedCallCount >= 12);
   assert.ok(standard.calls.filter((call) => call.refreshReasons.includes("full date-window coverage")).length >= 14);
   assert.ok(targetedDeep.selectedCallCount >= standard.selectedCallCount);
   assert.ok(targetedDeep.selectedCallCount < deep.selectedCallCount);
   assert.ok(targetedDeep.explanation.includes("viable route families"));
-  assert.ok(standard.calls.some((call) => call.title.includes("2026-07-29")));
-  assert.ok(deep.totalCandidateCalls > standard.totalCandidateCalls);
+  assert.ok(standard.calls.some((call) => call.title.includes("2026-08-07")));
+  assert.ok(deep.selectedCallCount > standard.selectedCallCount);
   assert.ok(deep.skippedCalls.some((call) => call.reason.includes("deep mode")));
 });
+
+async function temporaryRoot(context) {
+  const fixtureRoot = await mkdtemp(path.join(tmpdir(), "flight-plan-public-fixture-"));
+  context.after(() => rm(fixtureRoot, { recursive: true, force: true }));
+  return fixtureRoot;
+}
 
 test("snapshots can compare price movement", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "flight-plan-"));
