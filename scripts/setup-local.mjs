@@ -80,6 +80,11 @@ run(venvPython, ["-m", "pip", "install", "-r", requirements]);
 
 await writeEnv();
 
+// Generate the plan-list dashboard and app index so a fresh clone's first
+// `npm run serve` shows the empty-state page instead of a 404.
+console.log("Generating the starting dashboard...");
+run("node", [path.join("src", "cli.js"), "plan:list-dashboard"]);
+
 console.log("");
 console.log("Local setup complete.");
 console.log("Next steps:");

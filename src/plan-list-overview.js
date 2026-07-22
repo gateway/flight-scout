@@ -12,7 +12,10 @@ import { renderPriceTrendFragment } from "./dashboard-price-history.js";
 // Owns plan-list overview analysis and its compact decision/date-scan presentation.
 export function renderOverview(activePlans, dashboardPrefix) {
   if (!activePlans.length) {
-    return `<section id="overview"><h2>Overview</h2><p class="sub">No active plans right now. Archived or past-date plans stay available below.</p></section>`;
+    return `<section id="overview"><h2>Overview</h2>
+      <p class="sub">No active plans right now. Archived or past-date plans stay available below.</p>
+      <p class="sub">Create your first plan from the project folder with <code>npm run plan:new -- "One-way from Seattle to Tokyo around October 10, plus or minus 2 days"</code>, or ask your assistant with the flight-plan-riffer skill. Then refresh it and this page fills in.</p>
+    </section>`;
   }
   return `<section id="overview">
     <h2>Overview</h2>
