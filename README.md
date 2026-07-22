@@ -11,9 +11,12 @@ It is built for personal flight research: compare dates, routes, prices, total t
 ## What It Does
 
 - Searches flexible date windows, such as August 1 plus or minus 3 days.
-- Compares the best balance, cheapest, fastest, and risky-but-interesting options.
+- Compares the best balance, cheapest, fastest, and risky-but-interesting options, and explains why the recommended flight wins.
+- Tracks price history across refreshes and tells you honestly whether today's price is the lowest, highest, or middle of everything it has seen, with a sparkline per plan.
 - Tracks refreshes so you can see what got cheaper, higher, or newly available.
 - Shows when a refreshed flight meets a saved price or total-time target.
+- Offers a one-click window extension when the cheapest date lands on the edge of your search window.
+- Flags overnight layovers, separate-ticket transfer risk, and country transit notes before you commit to an itinerary.
 - Shows flight detail sidecards with legs, layovers, timing, and Google Flights links.
 - Keeps plans, caches, snapshots, and generated dashboards on your machine.
 
@@ -122,10 +125,12 @@ The dashboard app itself is local and command-driven, so another assistant or wo
 Each saved plan can generate:
 
 - **Current read:** the clearest next move in normal language.
-- **Best choices:** balanced, cheapest, fastest, and notable tradeoffs.
-- **Date compare:** which departure dates look strongest.
+- **Best choices:** balanced, cheapest, fastest, and notable tradeoffs, each with the reason it wins or loses.
+- **Price history:** the cheapest price ever seen for the plan, a sparkline of every saved check, and a factual read like "today's price is the highest across 5 checks since July 18."
+- **Date compare:** which departure dates look strongest, plus an offer to extend the window when the cheapest date sits on its edge.
 - **Route evidence:** the flight options behind the recommendation.
-- **Flight sidecards:** legs, travel time, layovers, and Google Flights links.
+- **Flight sidecards:** legs, travel time, layovers, travel caveats, and Google Flights links.
+- **Travel caveats:** overnight layovers, separate-ticket booking warnings, and transit-entry notes with a verify-your-passport disclaimer.
 - **Refresh history:** what changed since the previous scan.
 
 ## Local Data
