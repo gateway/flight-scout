@@ -12,15 +12,15 @@ npm run setup
 
 That creates a project-local Python virtual environment in `.venv`, installs the pinned flight-search runtime, and writes `.env`.
 
-Optional Codex skill install:
+Optional assistant skill install:
 
 ```bash
 npm run skill:install
 ```
 
-Use this when you want Codex to interpret rough flight requests with `$flight-plan-riffer`. The installer copies the skill to `~/.codex/skills/flight-plan-riffer`, or to `$CODEX_HOME/skills/flight-plan-riffer` when `CODEX_HOME` is set. It does not install Codex itself.
+Use this when you want an assistant to interpret rough flight requests. The installer copies the skill into every assistant skills folder found on your machine: `~/.codex/skills/flight-plan-riffer` for Codex (honors `CODEX_HOME`) and `~/.claude/skills/flight-plan-riffer` for Claude Code (honors `CLAUDE_HOME`). Force a single target with `npm run skill:install -- --codex` or `-- --claude`. It does not install Codex or Claude Code themselves.
 
-Claude and other assistants can still use the app through the command-line flow, but they do not automatically load the Codex skill format.
+Ask with `$flight-plan-riffer` in Codex or `/flight-plan-riffer` in Claude Code. Other assistants can still use the app through the command-line flow.
 
 Only use the manual path if you already have a Python environment you want to manage yourself:
 

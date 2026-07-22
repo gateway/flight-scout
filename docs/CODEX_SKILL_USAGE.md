@@ -1,11 +1,11 @@
-# Codex Skill Usage
+# Assistant Skill Usage
 
-The app and the Codex skill are separate pieces:
+The app and the skill are separate pieces:
 
 - The app stores plans, runs FLI searches, and generates the dashboards.
-- The skill helps Codex understand natural-language flight requests and choose the right app commands.
+- The skill helps an assistant understand natural-language flight requests and choose the right app commands.
 
-The skill is written for Codex's local skill system. It does not install Codex, Claude, or any other assistant. You need to run it from a Codex environment that can see this project folder and run local commands.
+The skill uses the shared local SKILL.md format that both Codex and Claude Code load. It does not install any assistant. You need an assistant session that can see this project folder and run local commands.
 
 ## Install
 
@@ -18,19 +18,16 @@ npm run skill:install
 
 `npm run setup` creates a project-local Python virtual environment in `.venv`, installs the pinned flight-search runtime, and writes `.env`.
 
-`npm run skill:install` copies `skills/flight-plan-riffer` into your Codex skills folder:
+`npm run skill:install` copies `skills/flight-plan-riffer` into every assistant skills folder found on your machine:
 
 ```text
-~/.codex/skills/flight-plan-riffer
+~/.codex/skills/flight-plan-riffer     (Codex; honors CODEX_HOME)
+~/.claude/skills/flight-plan-riffer    (Claude Code; honors CLAUDE_HOME)
 ```
 
-If `CODEX_HOME` is set, it installs there instead:
+Force a single target with `npm run skill:install -- --codex` or `-- --claude`.
 
-```text
-$CODEX_HOME/skills/flight-plan-riffer
-```
-
-Restart Codex or start a new session if the skill does not appear immediately.
+Start a new assistant session if the skill does not appear immediately. Invoke it with `$flight-plan-riffer` in Codex or `/flight-plan-riffer` in Claude Code.
 
 ## Start The App
 
@@ -77,11 +74,11 @@ In the local Codex desktop app, Codex can run the local server and open the dash
 
 In a cloud or remote Codex environment, the app can still generate plans and HTML files, but the browser view depends on that environment's port forwarding and artifact support. If the dashboard cannot be opened directly, use the generated files under `outputs/`.
 
-## What About Claude?
+## What About Other Assistants?
 
-Claude can use the app as a local command-line project if you give it access to the folder and the commands in [Command Reference](COMMAND_REFERENCE.md). The included `$flight-plan-riffer` skill is not a Claude Desktop plugin and is not automatically loaded by Claude.
+Claude Code loads the same skill directly; after `npm run skill:install`, invoke it with `/flight-plan-riffer` in a session that can see this project folder.
 
-If you want Claude Desktop to drive this with the same natural-language flow, build a separate Claude-compatible adapter around the same plan commands. The plan files and dashboard generation do not need to change.
+Any other assistant can use the app as a local command-line project if you give it access to the folder and the commands in [Command Reference](COMMAND_REFERENCE.md). Claude Desktop without Claude Code does not load local skills.
 
 ## Manual CLI Flow
 

@@ -77,31 +77,26 @@ Provider searches stay atomic and one-way. Flight Scout can compare stopovers, a
 
 ## Use It With An Assistant
 
-The dashboard is the local app. The Codex skill is the assistant layer that turns your rough travel request into the right local app commands.
+The dashboard is the local app. The skill is the assistant layer that turns your rough travel request into the right local app commands. The same skill works with Codex and with Claude Code, because both load the same SKILL.md format.
 
-Install the Codex skill:
+Install the skill:
 
 ```bash
 npm run skill:install
 ```
 
-That copies `skills/flight-plan-riffer` into your Codex skills folder:
+That copies `skills/flight-plan-riffer` into every assistant skills folder found on your machine:
 
 ```text
-~/.codex/skills/flight-plan-riffer
+~/.codex/skills/flight-plan-riffer     (Codex; honors CODEX_HOME)
+~/.claude/skills/flight-plan-riffer    (Claude Code; honors CLAUDE_HOME)
 ```
 
-If you set `CODEX_HOME`, it installs into:
+Use `npm run skill:install -- --codex` or `-- --claude` to install for only one of them.
 
-```text
-$CODEX_HOME/skills/flight-plan-riffer
-```
+Then start a new assistant session and ask with `$flight-plan-riffer` in Codex, or `/flight-plan-riffer` in Claude Code.
 
-Then restart Codex or start a new Codex session and ask with `$flight-plan-riffer`.
-
-This command does not install Codex for you. You still need a Codex environment that supports local skills, such as the Codex desktop app or a Codex CLI/session with access to this project folder.
-
-Claude or another assistant can still use the project by following the command docs, but Claude Desktop will not automatically load the Codex skill format. A separate Claude/MCP-style integration would be a future adapter, not the current install path.
+This command does not install Codex or Claude Code for you. You need an assistant session that can see this project folder and run local commands. Other assistants can still drive the app by following the [command docs](docs/COMMAND_REFERENCE.md); Claude Desktop without Claude Code does not load local skills.
 
 Good starter prompts:
 
@@ -142,7 +137,7 @@ This repo should not include your personal trip data, API keys, local environmen
 
 - [Getting Started](docs/GETTING_STARTED.md)
 - [Example Prompts](docs/EXAMPLE_PROMPTS.md)
-- [Codex Skill Usage](docs/CODEX_SKILL_USAGE.md)
+- [Assistant Skill Usage](docs/CODEX_SKILL_USAGE.md)
 - [Command Reference](docs/COMMAND_REFERENCE.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Security And Privacy](docs/SECURITY_AND_PRIVACY.md)
