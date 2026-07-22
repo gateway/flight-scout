@@ -63,21 +63,31 @@ test("route cards do not repeat a single layover already shown as the connection
     { calls: [] }
   );
 
-  assert.equal((html.match(/MID 2h 0m/g) ?? []).length, 1);
+  assert.equal((html.match(/· 2h 0m layover/g) ?? []).length, 1);
 });
 
-test("route price scan plots the cheapest complete option on each date instead of the balanced option", () => {
+test("date cards keep one concise comparison and label layovers for humans", () => {
   const balanced = routeFlight(1, {
     departureTime: "2026-10-02 08:00",
     price: 500,
     durationMinutes: 600,
-    humanScore: 10
+    humanScore: 10,
+    layovers: [{ id: "CDG", name: "Charles de Gaulle International Airport", duration: 220 }],
+    connectionRisk: {
+      level: "safe",
+      shortest: { id: "CDG", name: "Charles de Gaulle International Airport", duration: 220 }
+    }
   });
   const cheapest = routeFlight(2, {
     departureTime: "2026-10-02 10:00",
     price: 300,
     durationMinutes: 720,
-    humanScore: 80
+    humanScore: 80,
+    connectionRisk: {
+      level: "tight",
+      shortest: { id: "ARN", name: "Stockholm-Arlanda Airport", duration: 65 }
+    },
+    confidence: { level: "Low" }
   });
 
   const analysis = {
@@ -99,8 +109,34 @@ test("route price scan plots the cheapest complete option on each date instead o
   assert.ok(html.includes("<strong>$300</strong>"));
   assert.ok(!html.includes("<strong>$500</strong>"));
   assert.ok(html.includes("$300, 12h"));
-  assert.ok(cards.includes("Cheapest that day:"));
+  assert.ok(cards.includes("Cheapest alternative:"));
   assert.ok(cards.includes("$300"));
+  assert.ok(cards.includes("Paris (CDG) · 3h 40m layover"));
+  assert.ok(cards.includes("tight Stockholm (ARN) connection"));
+  assert.ok(cards.includes("less complete flight detail"));
+  assert.match(cards, /<div class="card-summary-row">[\s\S]*?<p>[\s\S]*?<span class="card-actions">/);
+  assert.ok(!cards.includes("tight ARN connection"));
+  assert.ok(!cards.includes("lower confidence"));
+  assert.ok(!cards.includes("best flexible date"));
+  assert.ok(!cards.includes("Cheapest that day:"));
+  assert.equal((cards.match(/October 2, 2026/g) ?? []).length, 1);
+});
+
+test("date cards omit a redundant cheapest note when the balanced flight is also cheapest", () => {
+  const option = routeFlight(1, {
+    departureTime: "2026-10-02 08:00",
+    price: 500,
+    durationMinutes: 600,
+    humanScore: 10
+  });
+  const cards = renderDateOpportunities({
+    options: [option],
+    best: option,
+    dateOpportunities: [{ date: "2026-10-02", balanced: option, cheapest: option, fastest: option }]
+  });
+
+  assert.ok(!cards.includes("Also cheapest"));
+  assert.ok(!cards.includes("Cheapest alternative"));
 });
 
 test("overview and refresh summary use the same human-ranked best flight as the decision page", () => {

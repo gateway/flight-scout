@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { readJsonBody } from "./server-json-body.js";
 import { createPlanActions } from "./server-plan-actions.js";
@@ -12,6 +12,10 @@ export function createPlanApiRouter({ root, actions, jobs } = {}) {
   return async function routePlanApi(request, response) {
     if (request.method === "POST" && request.url === "/api/plans/archive") {
       await handleArchive(request, response);
+      return true;
+    }
+    if (request.method === "POST" && request.url === "/api/plans/extend-window") {
+      await handleWindowExtension(request, response);
       return true;
     }
     if (request.method === "POST" && request.url === "/api/plans/refresh") {
@@ -35,15 +39,30 @@ export function createPlanApiRouter({ root, actions, jobs } = {}) {
 
   async function handleArchive(request, response) {
     const body = await readJsonBody(request);
-    if (!validPlanPath(body.planPath)) return sendInvalidPlan(response);
+    if (!await validPlanPath(body.planPath)) return sendInvalidPlan(response);
     const plan = await planActions.archivePlan(body.planPath, Boolean(body.restore));
     await planActions.regeneratePlanList();
     sendJson(response, 200, { ok: true, id: plan.id, archived: plan.status === "archived" });
   }
 
+  async function handleWindowExtension(request, response) {
+    const body = await readJsonBody(request);
+    if (!await validPlanPath(body.planPath)) return sendInvalidPlan(response);
+    if (!["earlier", "later"].includes(body.direction)) {
+      return sendJson(response, 400, { ok: false, message: "Direction must be earlier or later." });
+    }
+    const days = Math.min(3, Math.max(1, Math.trunc(Number(body.days)) || 1));
+    try {
+      const result = await planActions.extendPlanWindow({ planPath: body.planPath, direction: body.direction, days });
+      sendJson(response, 200, { ok: true, ...result });
+    } catch (error) {
+      sendJson(response, error.statusCode ?? 500, { ok: false, code: error.code ?? "WINDOW_EXTENSION_FAILED", message: error.message });
+    }
+  }
+
   async function handlePlanRefresh(request, response) {
     const body = await readJsonBody(request);
-    if (!validPlanPath(body.planPath)) return sendInvalidPlan(response);
+    if (!await validPlanPath(body.planPath)) return sendInvalidPlan(response);
     const refreshed = await planActions.refreshSelection({ all: false, planPath: body.planPath, body });
     await planActions.regeneratePlanList();
     sendJson(response, 200, { ok: true, refreshed });
@@ -58,7 +77,7 @@ export function createPlanApiRouter({ root, actions, jobs } = {}) {
 
   async function handleRefreshStart(request, response) {
     const body = await readJsonBody(request);
-    if (!body.all && !validPlanPath(body.planPath)) return sendInvalidPlan(response);
+    if (!body.all && !await validPlanPath(body.planPath)) return sendInvalidPlan(response);
     const job = refreshJobs.start(body);
     sendJson(response, 202, { ok: true, jobId: job.id });
   }
@@ -70,9 +89,16 @@ export function createPlanApiRouter({ root, actions, jobs } = {}) {
     sendJson(response, 200, { ok: true, job });
   }
 
-  function validPlanPath(value) {
+  async function validPlanPath(value) {
     if (typeof value !== "string" || !/^plans\/[^/]+\/plan\.json$/.test(value)) return false;
-    return existsSync(path.resolve(root, value));
+    try {
+      const plansRoot = await realpath(path.resolve(root, "plans"));
+      const target = await realpath(path.resolve(root, value));
+      const relative = path.relative(plansRoot, target);
+      return Boolean(relative) && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+    } catch {
+      return false;
+    }
   }
 }
 

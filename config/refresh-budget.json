@@ -2,6 +2,7 @@
   "provider": "fli-google-flights",
   "requestDelayMs": 5000,
   "staleAfterHours": 24,
+  "maxWindowDays": 14,
   "modes": {
     "light": {
       "description": "Refresh only decision-critical searches and known good route leads.",

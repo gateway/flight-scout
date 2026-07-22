@@ -5,6 +5,8 @@ import { refreshSpendSummaryText, renderRefreshDecisionCostCheck } from "./dashb
 import { metricSignal, signal } from "./dashboard-signals.js";
 import { renderWatchAlerts } from "./dashboard-watch-alerts.js";
 import { bestChoiceRationale } from "./decision-copy.js";
+import { renderPriceHistoryPanel } from "./dashboard-price-history.js";
+import { renderWindowEdgeSuggestion } from "./dashboard-window-edge.js";
 
 // Page-level renderers for the generated plan dashboard. Shared flight cards, drawers,
 // signals, and shell styles live in dedicated modules to keep page assembly readable.
@@ -26,16 +28,18 @@ export function createPageRenderers(helpers) {
     budgetAlternateStartOpportunity
   } = helpers;
 
-  function renderDecisionBudgetPage({ current, comparison, analysis, refreshPlan, trip, pages }) {
+  function renderDecisionBudgetPage({ current, comparison, analysis, refreshPlan, trip, pages, planPath }) {
     const history = analysis.snapshotHistory ?? [];
     return `
     <section class="plan-read">
       <h2>Current Read</h2>
       ${renderPlanRead({ analysis, current, trip })}
+      ${renderPriceHistoryPanel(analysis.planPriceHistory)}
+      ${renderWindowEdgeSuggestion(analysis.windowEdgeSuggestion, planPath)}
     </section>
     ${renderWatchAlerts(analysis.watchAlerts)}
     <section>
-      <h2>Best Decision Right Now</h2>
+      <h2>Best Decisions Right Now</h2>
       ${renderDecisionSummary(analysis)}
     </section>
     ${renderBudgetOpportunity({ analysis, current, trip })}
@@ -84,7 +88,7 @@ export function createPageRenderers(helpers) {
       ? ` It is also comfortably under your <strong>$${money(trip.budget.hardMax)}</strong> target.`
       : "";
     const rationale = bestChoiceRationale({ best, cheapest, fastest });
-    return `The cleanest option right now is ${readFlightDetailLink(best, label, ".")} ${airlineText}<strong>${route}</strong> for ${metricSignal(`$${money(best.price)}`, "info")}, taking about ${metricSignal(formatMinutes(best.durationMinutes), "info")}. ${escapeHtml(rationale)}${budget}`;
+    return `The cleanest option right now is ${readFlightDetailLink(best, label, ".")}&nbsp;${airlineText}<strong>${route}</strong> for ${metricSignal(`$${money(best.price)}`, "info")}, taking about ${metricSignal(formatMinutes(best.durationMinutes), "info")}. ${escapeHtml(rationale)}${budget}`;
   }
 
   function roundTripBestChoiceRead(best, trip) {
@@ -95,7 +99,7 @@ export function createPageRenderers(helpers) {
     const budget = trip?.budget?.hardMax
       ? `, under your <strong>$${money(trip.budget.hardMax)}</strong> target`
       : "";
-    return `The cleanest round-trip combination right now is ${readFlightDetailLink(best, null, ".")} Fly ${escapeHtml(outboundAirline || "the outbound flight")} from <strong>${escapeHtml(outbound.departureAirport)} to ${escapeHtml(outbound.arrivalAirport)}</strong> on ${metricSignal(formatHumanDate(outbound.departureTime?.slice(0, 10)), "info")}, then return ${escapeHtml(returnAirline || "on the return flight")} from <strong>${escapeHtml(returning.departureAirport)} to ${escapeHtml(returning.arrivalAirport)}</strong> on ${metricSignal(formatHumanDate(returning.departureTime?.slice(0, 10)), "info")}. The two one-way fares total ${metricSignal(`$${money(best.price)}`, "info")} and ${metricSignal(`${formatMinutes(best.durationMinutes)} of scheduled flight time`, "info")}${budget}. They are separate tickets, so compare both ticket rules before booking.`;
+    return `The cleanest round-trip combination right now is ${readFlightDetailLink(best, null, ".")}&nbsp;Fly ${escapeHtml(outboundAirline || "the outbound flight")} from <strong>${escapeHtml(outbound.departureAirport)} to ${escapeHtml(outbound.arrivalAirport)}</strong> on ${metricSignal(formatHumanDate(outbound.departureTime?.slice(0, 10)), "info")}, then return ${escapeHtml(returnAirline || "on the return flight")} from <strong>${escapeHtml(returning.departureAirport)} to ${escapeHtml(returning.arrivalAirport)}</strong> on ${metricSignal(formatHumanDate(returning.departureTime?.slice(0, 10)), "info")}. The two one-way fares total ${metricSignal(`$${money(best.price)}`, "info")} and ${metricSignal(`${formatMinutes(best.durationMinutes)} of scheduled flight time`, "info")}${budget}. They are separate tickets, so compare both ticket rules before booking.`;
   }
 
   function cheapestRead(cheapest, best) {
@@ -107,7 +111,7 @@ export function createPageRenderers(helpers) {
     const savings = priceDiff > 0 ? ` It saves ${metricSignal(`$${money(priceDiff)}`, "good")}` : "";
     const extraTime = timeDiff > 0 ? ` and adds about ${metricSignal(proseDuration(timeDiff), "warn")}` : timeDiff === 0 ? " with the same travel time" : "";
     const tradeoff = savings || extraTime ? `${savings}${extraTime} versus the cleaner pick.` : " It is worth checking if the departure time works better for you.";
-    return `If you want the lowest fare, also check ${readFlightDetailLink(cheapest, label, ".")} ${airlineText}${metricSignal(`$${money(cheapest.price)}`, "good")} and takes about ${metricSignal(formatMinutes(cheapest.durationMinutes), "info")}.${tradeoff}`;
+    return `If you want the lowest fare, also check ${readFlightDetailLink(cheapest, label, ".")}&nbsp;${airlineText}${metricSignal(`$${money(cheapest.price)}`, "good")} and takes about ${metricSignal(formatMinutes(cheapest.durationMinutes), "info")}.${tradeoff}`;
   }
 
   function optionDateLabel(option) {
@@ -145,8 +149,9 @@ export function createPageRenderers(helpers) {
     return `<details class="side-drawer inline-read-drawer"><summary><strong>${label}</strong></summary><div class="drawer-panel">${renderFlightDetailPanel(option, "Flight detail")}</div></details>`;
   }
 
-  function renderDatesPage({ plan, current, comparison, analysis }) {
+  function renderDatesPage({ plan, current, comparison, analysis, planPath }) {
     return `
+    ${renderWindowEdgeSuggestion(analysis.windowEdgeSuggestion, planPath)}
     <section>
       <h2>Best Dates To Consider</h2>
       ${renderDateHighlights(analysis)}
@@ -157,8 +162,7 @@ export function createPageRenderers(helpers) {
       ${renderPriceGraph(plan, analysis)}
     </section>
     <section>
-      <h2>Best Option On Each Date</h2>
-      <p class="sub">Use this when your departure day matters. Each card shows the best complete option for that date, then compares it against the best flexible-date choice.</p>
+      <h2>Best Flight by Departure Date</h2>
       ${renderDateOpportunities(analysis)}
     </section>`;
   }

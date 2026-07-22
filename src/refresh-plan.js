@@ -30,6 +30,7 @@ export async function buildRefreshPlan({ plan, trip, mode = null, root = process
     provider: PROVIDERS.FLI,
     explanation: refreshModeExplanation(selectedMode),
     requestDelayMs: trip.rules?.requestDelayMs ?? config.requestDelayMs,
+    maxWindowDays: config.maxWindowDays,
     totalCandidateCalls: selection.calls.length,
     selectedCallCount: calls.length,
     fliCallCount: calls.filter((call) => call.provider.fliLive).length,

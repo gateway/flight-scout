@@ -163,6 +163,11 @@ test("derives layovers from fli legs when provider omits layover objects", () =>
 
   assert.equal(flight.stops, 2);
   assert.deepEqual(flight.layovers.map((layover) => [layover.id, layover.duration]), [["TPE", 85], ["SEA", 188]]);
+  assert.deepEqual(flight.layovers.map((layover) => [layover.arrivalTime, layover.departureTime]), [
+    ["2026-08-04 22:05", "2026-08-04 23:30"],
+    ["2026-08-04 19:45", "2026-08-04 22:53"]
+  ]);
+  assert.deepEqual(flight.layovers.map((layover) => layover.overnight), [false, false]);
 });
 
 test("fli provider reports unsupported round trips before running Python", () => {

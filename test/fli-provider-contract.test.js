@@ -123,7 +123,14 @@ test("FLI normalization preserves the complete dashboard flight contract", () =>
       travel_class: null,
       extensions: []
     }],
-    layovers: [{ id: "SIN", name: "Singapore Changi Airport", duration: 60 }],
+    layovers: [{
+      id: "SIN",
+      name: "Singapore Changi Airport",
+      duration: 60,
+      arrivalTime: "2026-09-11 05:00",
+      departureTime: "2026-09-11 06:00",
+      overnight: false
+    }],
     bookingToken: "generic-token",
     raw: rawFlight
   }]);

@@ -1,4 +1,5 @@
 import { PROVIDERS } from "./provider-types.js";
+import { enrichLayoversWithTimes } from "../connection-duration.js";
 
 // Maps raw adapter results into the stable flight shape consumed by analysis and dashboards.
 export function normalizeFliResults(search, rawResult, source = "live") {
@@ -136,9 +137,11 @@ function normalizeFliLayovers(layovers, legs) {
   const provided = (layovers ?? []).filter(Boolean).map((layover) => ({
     id: layover.id ?? layover.airport ?? null,
     name: layover.name ?? layover.airportName ?? layover.id ?? layover.airport ?? null,
-    duration: layover.duration ?? layover.durationMinutes ?? null
+    duration: layover.duration ?? layover.durationMinutes ?? null,
+    arrivalTime: layover.arrivalTime ?? null,
+    departureTime: layover.departureTime ?? null
   }));
-  return provided.length ? provided : deriveLayoversFromLegs(legs);
+  return enrichLayoversWithTimes(provided.length ? provided : deriveLayoversFromLegs(legs), legs);
 }
 
 function deriveLayoversFromLegs(legs) {

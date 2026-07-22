@@ -9,6 +9,7 @@ import {
   optionPrice,
   travelPainBreakdown
 } from "./decision-metrics.js";
+import { connectionCaveatsForOption, SEPARATE_TICKET_CAVEAT } from "./connection-caveats.js";
 
 // Owns the raw-option to decision-option projection used by every selector and renderer.
 export function normalizeOptions({ plan, trip = null, routeGroups, refreshBySearchId = new Map() }) {
@@ -29,12 +30,13 @@ export function normalizeOption({ option, route, trip = null, plan = null, refre
   const layovers = optionLayovers(option);
   const travelPain = travelPainBreakdown(option);
   const assumptions = extraTravelAssumptions({ option, route, trip });
+  const decisionAssumptions = assumptions.filter((item) => item.affectsDecision !== false);
   const connectionRisk = connectionRiskSummary(layovers);
-  const confidence = confidenceLabel({ option, price, durationMinutes, connectionRisk, assumptions, refreshBySearchId });
-  const humanScore = humanPainScore({ option, price, durationMinutes, connectionRisk, assumptions, confidence });
+  const confidence = confidenceLabel({ option, price, durationMinutes, connectionRisk, assumptions: decisionAssumptions, refreshBySearchId });
+  const humanScore = humanPainScore({ option, price, durationMinutes, connectionRisk, assumptions: decisionAssumptions, confidence });
   const viability = classifyCandidate(option, viabilityRulesFrom({ trip, plan }));
 
-  return {
+  const normalized = {
     ...option,
     routeIdeaId: route.id,
     routeIdeaLabel: route.label,
@@ -55,10 +57,26 @@ export function normalizeOption({ option, route, trip = null, plan = null, refre
     isHardRejected: viability.status === VIABILITY.HARD_REJECT,
     isEvaluable: Number.isFinite(price) && Number.isFinite(durationMinutes)
   };
+  return { ...normalized, connectionCaveats: connectionCaveatsForOption(normalized) };
 }
 
 function extraTravelAssumptions({ option, route, trip }) {
   const assumptions = [];
+  if (option.kind === "composed-stopover") {
+    assumptions.push({
+      level: "warning",
+      label: "Separate tickets",
+      text: SEPARATE_TICKET_CAVEAT,
+      affectsDecision: false
+    });
+    if (option.inbound?.arrivalAirport && option.onward?.departureAirport && option.inbound.arrivalAirport !== option.onward.departureAirport) {
+      assumptions.push({
+        level: "warning",
+        label: "Airport change during stopover",
+        text: `The first ticket arrives at ${option.inbound.arrivalAirport}, but the next ticket departs from ${option.onward.departureAirport}. Allow enough time for baggage, immigration, and the airport transfer.`
+      });
+    }
+  }
   if (option.kind === "composed-round-trip") {
     assumptions.push({
       level: "warning",

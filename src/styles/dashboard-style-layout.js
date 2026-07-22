@@ -45,8 +45,9 @@ p { margin: 0; color: var(--muted); }
 }
 .grid { grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); }
 .decision-stack { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); align-items: stretch; }
+.decision-list { grid-template-columns: 1fr; }
 .budget-strip { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-.date-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.date-strip { grid-template-columns: 1fr; }
 .price-graph { grid-template-columns: 1fr; }
 .overview-stack {
   display: grid;

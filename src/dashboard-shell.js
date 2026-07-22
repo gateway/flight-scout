@@ -2,6 +2,7 @@ import { dashboardCss } from "./dashboard-styles.js";
 import { escapeAttr, escapeHtml, formatDateTime, money } from "./html-utils.js";
 import { planDisplaySummary } from "./plan-display.js";
 import { renderRefreshOverlay, renderRefreshPlanButton, renderRefreshScript } from "./browser-refresh-controls.js";
+import { renderWindowExtensionScript } from "./dashboard-window-edge.js";
 
 // Shared page shell, top navigation, and side-drawer browser behavior.
 function renderPageShell({ plan, planPath, current, pages }, activePage, body) {
@@ -27,6 +28,7 @@ function renderPageShell({ plan, planPath, current, pages }, activePage, body) {
 ${renderDrawerScript()}
 ${renderRefreshOverlay()}
 ${renderRefreshScript()}
+${renderWindowExtensionScript()}
 </body>
 </html>`;
 }

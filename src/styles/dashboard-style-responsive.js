@@ -53,7 +53,6 @@ export function dashboardStyleResponsive() {
   .timeline-time span,
   .timeline-layover span { white-space: normal; }
   .timeline-layover { margin-left: 56px; }
-  .date-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .price-row-head { grid-template-columns: 1fr; }
   .price-row-meta { padding-left: 0; border-left: 0; text-align: left; }
   .price-bars { overflow-x: auto; padding-bottom: 6px; }
@@ -82,8 +81,7 @@ export function dashboardStyleResponsive() {
   section { border-radius: 16px; padding: 18px; }
   h1 { font-size: clamp(36px, 12vw, 54px); }
   .grid,
-  .budget-strip,
-  .date-strip { grid-template-columns: 1fr; }
+  .budget-strip { grid-template-columns: 1fr; }
   .flight-card .card-head {
     grid-template-columns: minmax(0, 1fr) minmax(84px, auto);
     gap: 10px;

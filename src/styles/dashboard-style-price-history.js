@@ -5,55 +5,64 @@ export function dashboardStylePriceHistory() {
   padding: 16px 0;
   border-block: 1px solid var(--line);
 }
-.route-history-head,
-.route-history-summary {
+.plan-price-history {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 280px);
+  gap: 12px 24px;
+  align-items: center;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.price-history-copy,
+.price-history-detail {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 8px 18px;
+  gap: 6px 16px;
 }
-.route-history-head > div { display: grid; gap: 4px; }
-.route-history-head > div > strong { color: var(--fg); font-size: 17px; }
-.route-history-head > span,
-.route-history-summary { color: var(--muted); font-size: 13px; font-weight: 760; }
-.history-trend {
-  height: 112px;
-  display: flex;
-  align-items: end;
-  gap: clamp(6px, 1.4vw, 14px);
-  margin: 16px 0 12px;
-}
-.history-point {
-  min-width: 0;
-  height: 100%;
-  flex: 1;
+.price-history-copy > div { display: grid; gap: 4px; }
+.price-history-copy strong { color: var(--fg); font-size: 15px; }
+.price-history-copy > span,
+.price-history-detail { color: var(--muted); font-size: 13px; font-weight: 760; }
+.price-history-detail { grid-column: 1; justify-content: flex-start; }
+.price-history-detail strong { color: var(--good); }
+.price-history-chart {
+  grid-column: 2;
+  grid-row: 1 / span 2;
   display: grid;
-  grid-template-rows: 1fr auto;
-  align-items: end;
   gap: 5px;
+  align-self: stretch;
 }
-.history-point i {
-  width: 100%;
-  height: var(--history-level);
-  min-height: 8px;
-  display: block;
-  border-radius: 4px 4px 2px 2px;
-  background: color-mix(in oklch, var(--accent) 66%, var(--surface-3));
-}
-.history-point.cheapest i { background: var(--good); }
-.history-point small {
-  overflow: hidden;
+.price-history-chart-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
   color: var(--quiet);
-  font: 720 10px/1.2 var(--font-mono);
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font: 760 11px/1.2 var(--font-body);
 }
-.route-history-summary { justify-content: flex-start; }
-.route-history-summary .history-good { color: var(--good); }
-.route-history-summary .history-warn { color: var(--warn); }
-@media (max-width: 560px) {
-  .history-trend { gap: 4px; }
-  .history-point small { display: none; }
-}`;
+.price-sparkline {
+  width: 100%;
+  height: 72px;
+  overflow: visible;
+}
+.price-sparkline.compact {
+  width: 112px;
+  height: 34px;
+}
+.price-trend-fragment {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.price-trend-fragment > span { display: grid; gap: 2px; }
+.price-trend-fragment strong { color: var(--fg); font-size: 13px; }
+.price-trend-fragment small { color: var(--muted); font-size: 12px; }
+@media (max-width: 700px) {
+  .plan-price-history { grid-template-columns: 1fr; }
+  .price-history-chart { grid-column: 1; grid-row: auto; }
+}
+`;
 }

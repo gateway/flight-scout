@@ -9,7 +9,8 @@ export function resolveAirportDataPlace(value) {
   const query = splitPlaceQuery(value);
   if (!query.city) return null;
   const data = airportData();
-  let direct = data.byCity.get(query.city) ?? data.byName.get(query.city) ?? [];
+  const cityMatches = data.byCity.get(query.city);
+  let direct = cityMatches ? scheduledServiceAirports(cityMatches) : data.byName.get(query.city) ?? [];
   if (query.location) direct = direct.filter((airport) => locationMatches(airport, query.location));
   if (!direct.length || isAmbiguous(direct, query.location)) return null;
 
@@ -18,7 +19,7 @@ export function resolveAirportDataPlace(value) {
   const expanded = [...metroCodes]
     .flatMap((code) => data.byMetro.get(code) ?? [])
     .filter((airport) => !directCodes.has(airport.code))
-    .filter((airport) => airport.type === "large_airport")
+    .filter((airport) => airport.type === "large_airport" && airport.scheduledService)
     .filter((airport) => airport.isoCountry === direct[0].isoCountry);
   const airports = uniqueAirports([...direct, ...expanded])
     .sort((left, right) => compareAirports(left, right, directCodes));
@@ -61,7 +62,7 @@ export function hasAirportCode(code) {
 function airportData() {
   if (cachedData) return cachedData;
   const snapshot = JSON.parse(readFileSync(new URL("../data/airports.json", import.meta.url), "utf8"));
-  if (snapshot.version !== 1 || !Array.isArray(snapshot.airports)) throw new Error("Unsupported airport data snapshot.");
+  if (![1, 2].includes(snapshot.version) || !Array.isArray(snapshot.airports)) throw new Error("Unsupported airport data snapshot.");
   const airports = snapshot.airports.map(toAirport);
   const byCode = new Map(airports.map((airport) => [airport.code, airport]));
   const byCity = groupBy(airports, (airport) => normalizeMunicipality(airport.municipality));
@@ -88,8 +89,14 @@ function airportData() {
 function toAirport(row) {
   return {
     code: row[0], name: row[1], municipality: row[2], isoCountry: row[3], country: row[4],
-    isoRegion: row[5], region: row[6], type: row[7], metroCodes: row[8] ?? []
+    isoRegion: row[5], region: row[6], type: row[7], metroCodes: row[8] ?? [],
+    scheduledService: row.length < 10 || row[9] === true
   };
+}
+
+function scheduledServiceAirports(airports) {
+  const scheduled = airports.filter((airport) => airport.scheduledService);
+  return scheduled.length ? scheduled : airports;
 }
 
 function groupBy(items, keyFor) {

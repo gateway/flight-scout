@@ -1,4 +1,5 @@
 import { dateOnly, escapeHtml, formatHumanDate, formatMinutes, money } from "./html-utils.js";
+import { airportDataMetadataForCode } from "./airport-data.js";
 
 // Pure option projection owns route/date labels, decision copy, and compact supporting blocks.
 export function hasFlightDetail(option) {
@@ -88,11 +89,28 @@ export function optionDate(option) {
 
 export function connectionPill(option) {
   const layover = option.connectionRisk?.shortest;
-  if (!layover) return "";
-  const unknown = option.connectionRisk?.level === "unknown";
-  const className = option.connectionRisk?.level === "tight" ? "bad" : option.connectionRisk?.level === "watch" || unknown ? "warn" : "good";
-  const timing = unknown ? "time unknown" : formatMinutes(layover.duration) ?? "";
-  return `<span class="pill connection ${className}">${escapeHtml(layover.id ?? layover.name ?? "layover")} ${escapeHtml(timing)}</span>`;
+  const overnight = option.connectionCaveats?.overnightLayovers?.[0];
+  if (!layover && !overnight) return "";
+  const pills = [];
+  if (layover) {
+    const unknown = option.connectionRisk?.level === "unknown";
+    const className = option.connectionRisk?.level === "tight" ? "bad" : option.connectionRisk?.level === "watch" || unknown ? "warn" : "good";
+    const timing = unknown ? "time unknown" : formatMinutes(layover.duration) ?? "";
+    pills.push(`<span class="pill connection ${className}">${escapeHtml(connectionPlaceLabel(layover))} · ${escapeHtml(timing)} layover</span>`);
+  }
+  if (overnight) {
+    pills.push(`<span class="pill connection warn overnight">Overnight at ${escapeHtml(overnight.id ?? overnight.name ?? "connection")}</span>`);
+  }
+  return pills.join("");
+}
+
+export function connectionPlaceLabel(layover) {
+  const code = String(layover?.id ?? "").toUpperCase();
+  const airport = code ? airportDataMetadataForCode(code) : null;
+  const city = airport?.municipality?.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  if (city && code) return `${city} (${code})`;
+  if (layover?.name && code && layover.name !== code) return `${layover.name} (${code})`;
+  return code || layover?.name || "Connection";
 }
 
 export function renderPainBreakdown(option) {

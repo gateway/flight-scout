@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -59,6 +59,61 @@ test("plan API router delegates refresh-all and refresh job status", async () =>
   assert.deepEqual(JSON.parse(statusResponse.body), { ok: true, job: { id: "known", status: "running" } });
   assert.equal(await route(jsonRequest("GET", "/api/plans/refresh-status-extra?id=known"), captureResponse()), false);
   assert.equal(await route(jsonRequest("GET", "/api/plans/unknown"), captureResponse()), false);
+});
+
+test("plan API router validates and clamps window-extension requests", async (context) => {
+  const root = await mkdtemp(path.join(tmpdir(), "flight-server-window-api-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, "plans", "sample"), { recursive: true });
+  await writeFile(path.join(root, "plans", "sample", "plan.json"), "{}\n");
+  const calls = [];
+  const actions = { extendPlanWindow: async (input) => {
+    calls.push(input);
+    return { planId: "sample", departureWindow: { start: "2026-10-01", end: "2026-10-08" } };
+  } };
+  const route = createPlanApiRouter({ root, actions, jobs: unusedJobs() });
+
+  const response = captureResponse();
+  assert.equal(await route(jsonRequest("POST", "/api/plans/extend-window", {
+    planPath: "plans/sample/plan.json",
+    direction: "later",
+    days: 99
+  }), response), true);
+  assert.equal(response.statusCode, 200);
+  assert.equal(calls[0].days, 3);
+
+  const invalid = captureResponse();
+  await route(jsonRequest("POST", "/api/plans/extend-window", {
+    planPath: "plans/sample/plan.json",
+    direction: "sideways",
+    days: 2
+  }), invalid);
+  assert.equal(invalid.statusCode, 400);
+});
+
+test("plan API router rejects a saved-plan path that resolves outside the plans directory", async (context) => {
+  const root = await mkdtemp(path.join(tmpdir(), "flight-server-plan-path-"));
+  const outside = await mkdtemp(path.join(tmpdir(), "flight-server-outside-plan-"));
+  context.after(() => Promise.all([
+    rm(root, { recursive: true, force: true }),
+    rm(outside, { recursive: true, force: true })
+  ]));
+  await mkdir(path.join(root, "plans"), { recursive: true });
+  await writeFile(path.join(outside, "plan.json"), "{}\n");
+  await symlink(outside, path.join(root, "plans", "escape"));
+  const calls = [];
+  const actions = { extendPlanWindow: async (input) => calls.push(input) };
+  const route = createPlanApiRouter({ root, actions, jobs: unusedJobs() });
+  const response = captureResponse();
+
+  await route(jsonRequest("POST", "/api/plans/extend-window", {
+    planPath: "plans/escape/plan.json",
+    direction: "earlier",
+    days: 2
+  }), response);
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(calls.length, 0);
 });
 
 function jsonRequest(method, url, body = {}) {

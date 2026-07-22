@@ -25,7 +25,7 @@ const STYLES_DIR = new URL("../src/styles/", import.meta.url);
 test("dashboard CSS composition stays byte-stable", () => {
   const hash = createHash("sha256").update(dashboardCss()).digest("hex");
 
-  assert.equal(hash, "529444b08123a3fc5c4682e39a0ff175068a0f62f556a11e7d8c25a65aa9666a");
+  assert.equal(hash, "9093716b15fd3d9475d83c779ed59e3d7a7ff591ca74560de5fdfdc69523022d");
 });
 
 test("component theme is assembled from focused family modules without a size exception", async () => {
@@ -68,6 +68,17 @@ test("each component selector has one family owner", () => {
 test("hero headings wrap long slash-delimited route names on mobile", () => {
   assert.match(dashboardCss(), /h1 \{[^}]*overflow-wrap: break-word;[^}]*word-break: normal;/s);
   assert.doesNotMatch(dashboardCss(), /h1 \{[^}]*overflow-wrap: anywhere;/s);
+});
+
+test("date opportunity cards stay one per row at every viewport", () => {
+  assert.match(dashboardStyleLayout(), /\.date-strip \{ grid-template-columns: 1fr; \}/);
+  assert.match(dashboardStyleActions(), /\.card-summary-row \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto;/s);
+  assert.doesNotMatch(dashboardCss(), /\.date-strip \{ grid-template-columns: repeat\(/);
+});
+
+test("best-decision cards reuse the one-row summary and action layout", () => {
+  assert.match(dashboardStyleLayout(), /\.decision-list \{ grid-template-columns: 1fr; \}/);
+  assert.match(dashboardStyleActions(), /\.card-summary-row \.card-actions \{[^}]*margin-top: 0 !important;/s);
 });
 
 async function readSource(file) {

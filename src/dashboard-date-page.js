@@ -1,13 +1,15 @@
 import { worthIt } from "./decision-analysis.js";
 import { escapeAttr, escapeHtml, formatHumanDate, formatMinutes, money } from "./html-utils.js";
-import { connectionPill, flightActionLinks, hasFlightDetail, optionDate, optionHeadline, optionRouteLine, renderCardHead, renderFlightDetailPanel, renderPainBreakdown } from "./dashboard-flight-components.js";
-import { metricSignal, signal, signalizeText } from "./dashboard-signals.js";
+import { connectionPill, flightActionLinks, hasFlightDetail, optionDate, optionHeadline, optionRouteLine, renderAssumptions, renderCardHead, renderCardSummaryRow, renderFlightDetailPanel, renderPainBreakdown } from "./dashboard-flight-components.js";
+import { connectionPlaceLabel } from "./dashboard-flight-option.js";
+import { metricSignal, signalizeText } from "./dashboard-signals.js";
 import { minBy } from "./collections.js";
 import { cheapestCompleteOptionsByDate } from "./date-option-selection.js";
+import { dateWindowDays } from "./plan-list-coverage.js";
 
 // Date comparison components answer date-window questions without duplicating route-card layouts.
 export function renderPriceGraph(plan, analysis) {
-  const rows = plan.routeIdeas.map((route) => priceGraphRow(route, analysis.options.filter((option) => option.routeIdeaId === route.id))).filter(Boolean);
+  const rows = plan.routeIdeas.map((route) => priceGraphRow(route, analysis.options.filter((option) => option.routeIdeaId === route.id), plan)).filter(Boolean);
   if (!rows.length) return `<p class="sub">No date-level prices are available yet.</p>`;
   const allPrices = rows.flatMap((row) => row.points.map((point) => point.price)).filter(Number.isFinite);
   const min = Math.min(...allPrices);
@@ -37,36 +39,42 @@ export function renderDateOpportunities(analysis) {
     const best = item.balanced;
     const deltaFromBest = analysis.best ? best.price - analysis.best.price : 0;
     return `<article class="flight-card date-card ${sameOption(best, analysis.best) ? "best" : ""}">
-      ${renderCardHead("Best option on this date", best, { hideRouteLabel: compactRoute })}
-      <p>${dateOpportunitySummary(item, analysis.best, deltaFromBest, compactRoute)}</p>
+      ${renderCardHead(null, best, { hideRouteLabel: compactRoute, hideActions: true })}
+      ${renderCardSummaryRow(dateOpportunitySummary(item, analysis.best, deltaFromBest), best)}
       <div class="meta">
-        <span class="pill">${escapeHtml(formatHumanDate(optionDate(best) ?? item.date))}</span>
-        ${dateComparisonSignal(best, analysis.best, deltaFromBest)}
         ${connectionPill(best)}
       </div>
       ${renderCheapestForDateNote(item, compactRoute)}
       ${renderPainBreakdown(best)}
+      ${renderAssumptions(best)}
     </article>`;
   }).join("")}</div>`;
 }
 
-function priceGraphRow(route, options) {
+function priceGraphRow(route, options, plan) {
   const byDate = cheapestCompleteOptionsByDate(options);
-  const points = [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, option]) => ({
-    date,
-    price: option.price ?? option.totalCost,
-    duration: option.durationMinutes,
-    option
-  }));
-  if (!points.length) return null;
-  const best = points.reduce((winner, point) => point.price < winner.price ? point : winner, points[0]);
+  const expectedDates = dateWindowDays(plan);
+  const dates = expectedDates.length ? expectedDates : [...byDate.keys()].sort();
+  const points = dates.map((date) => {
+    const option = byDate.get(date);
+    return option ? {
+      date,
+      price: option.price ?? option.totalCost,
+      duration: option.durationMinutes,
+      option
+    } : { date, price: null, duration: null, option: null, needsData: true };
+  });
+  const complete = points.filter((point) => Number.isFinite(point.price));
+  if (!complete.length) return null;
+  const best = complete.reduce((winner, point) => point.price < winner.price ? point : winner, complete[0]);
   return { route, points, best };
 }
 
 function renderPriceGraphRow(row, min, max) {
   const range = Math.max(1, max - min);
-  const coverageText = `${row.points.length} complete date${row.points.length === 1 ? "" : "s"}`;
-  const coverageNote = row.points.length === 1
+  const completeCount = row.points.filter((point) => Number.isFinite(point.price)).length;
+  const coverageText = `${completeCount}/${row.points.length} dates with results`;
+  const coverageNote = completeCount === 1
     ? "Only one date currently has the complete saved route data needed for this comparison."
     : "Click any date to see the flight detail.";
   return `<article class="price-row">
@@ -75,6 +83,7 @@ function renderPriceGraphRow(row, min, max) {
       <div class="price-row-meta"><strong>${escapeHtml(coverageText)}</strong><small>${escapeHtml(coverageNote)}</small></div>
     </div>
     <div class="price-bars">${row.points.map((point) => {
+      if (point.needsData) return renderPricePoint(row, point, false, 0);
       const height = 22 + ((point.price - min) / range) * 58;
       return renderPricePoint(row, point, point === row.best, height);
     }).join("")}</div>
@@ -82,6 +91,13 @@ function renderPriceGraphRow(row, min, max) {
 }
 
 function renderPricePoint(row, point, isBest, height) {
+  if (point.needsData) {
+    return `<div class="price-bar needs-data" title="${escapeAttr(`${row.route.label} ${formatHumanDate(point.date)}: no saved result`)}">
+      <span class="bar-fill" style="height:8px"></span>
+      <strong>needs data</strong>
+      <small>${escapeHtml(formatShortDate(point.date))}</small>
+    </div>`;
+  }
   const content = `
     <span class="bar-fill" style="height:${Math.round(height)}px"></span>
     <strong>$${money(point.price)}</strong>
@@ -137,6 +153,7 @@ function renderDateHighlightCard(label, option, reason, primary = false, compact
       ${connectionPill(option)}
     </div>
     <p class="small">${signalizeText(reason)}</p>
+    ${renderAssumptions(option)}
   </article>`;
 }
 
@@ -144,43 +161,31 @@ function sameOption(a, b) {
   return Boolean(a && b && optionKey(a) === optionKey(b));
 }
 
-function dateOpportunitySummary(item, currentBest, deltaFromBest, compactRoute = false) {
+function dateOpportunitySummary(item, currentBest, deltaFromBest) {
   const option = item.balanced;
-  const route = compactRoute ? "" : ` Route: ${escapeHtml(option.routeIdeaLabel ?? optionRouteLine(option))}.`;
-  const date = formatHumanDate(item.date) || item.date;
   const bestDate = formatHumanDate(optionDate(currentBest)) || "the best flexible date";
-  const duration = metricSignal(formatMinutes(option.durationMinutes), "info");
   if (sameOption(option, currentBest)) {
-    return `If your dates are flexible, start with ${signal(date, "info")}. It has the strongest mix across the whole window at ${metricSignal(`$${money(option.price)}`, "info")} and ${duration}.${route}`;
+    return "Best overall date for the strongest mix of price, travel time, and connection comfort.";
   }
   if (!Number.isFinite(deltaFromBest) || deltaFromBest === 0) {
-    return `${signal(date, "info")} is tied on price with ${signal(bestDate, "info")}. Choose between them by departure time, airport path, and connection comfort.${route}`;
+    return `Same price as ${metricSignal(bestDate, "info")}. Compare departure time and connection comfort.`;
   }
   if (deltaFromBest < 0) {
-    return `${signal(date, "info")} is ${metricSignal(`$${money(Math.abs(deltaFromBest))} cheaper`, "good")} than ${signal(bestDate, "info")}, but ranks lower overall because the timing, route, or connection profile is less clean.${route}`;
+    return `${metricSignal(`$${money(Math.abs(deltaFromBest))} cheaper`, "good")} than ${escapeHtml(bestDate)}, but its timing or connection is less comfortable overall.`;
   }
-  return `${signal(date, "info")} costs ${metricSignal(`$${money(deltaFromBest)} more`, "warn")} than ${signal(bestDate, "info")}. Use it if this departure date works better for your schedule.${route}`;
-}
-
-function dateComparisonSignal(option, currentBest, deltaFromBest) {
-  if (sameOption(option, currentBest)) return metricSignal("best flexible date", "good");
-  if (!Number.isFinite(deltaFromBest) || deltaFromBest === 0) return metricSignal("same price as best date", "info");
-  if (deltaFromBest < 0) return metricSignal(`$${money(Math.abs(deltaFromBest))} cheaper than best date`, "good");
-  return metricSignal(`$${money(deltaFromBest)} more than best date`, "warn");
+  return `${metricSignal(`$${money(deltaFromBest)} more`, "warn")} than ${escapeHtml(bestDate)}. Choose it if this departure date fits your schedule better.`;
 }
 
 function renderCheapestForDateNote(item, compactRoute = false) {
   const balanced = item.balanced;
   const cheapest = item.cheapest;
   if (!cheapest) return "";
-  if (sameOption(balanced, cheapest)) {
-    return `<div class="date-note"><strong>${signal("Also cheapest that day", "good")}:</strong> this balanced pick is the lowest complete fare we found for ${escapeHtml(formatShortDate(item.date))}.</div>`;
-  }
+  if (sameOption(balanced, cheapest)) return "";
   const cheapestLine = compactRoute
-    ? `${optionRouteLine(cheapest)}, $${money(cheapest.price)}, ${escapeHtml(formatMinutes(cheapest.durationMinutes) ?? "")}`
-    : `${escapeHtml(cheapest.routeIdeaLabel ?? optionRouteLine(cheapest))}, $${money(cheapest.price)}, ${escapeHtml(formatMinutes(cheapest.durationMinutes) ?? "")}`;
+    ? `$${money(cheapest.price)} · ${escapeHtml(formatMinutes(cheapest.durationMinutes) ?? "")}`
+    : `${escapeHtml(cheapest.routeIdeaLabel ?? optionRouteLine(cheapest))} · $${money(cheapest.price)} · ${escapeHtml(formatMinutes(cheapest.durationMinutes) ?? "")}`;
   return `<div class="date-note">
-    <strong>Cheapest that day:</strong> ${escapeHtml(cheapestLine)}.
+    <strong>Cheapest alternative:</strong> ${cheapestLine}.
     <span>${signalizeText(whyBalancedBeatsCheapest(balanced, cheapest))}</span>
   </div>`;
 }
@@ -195,12 +200,12 @@ function whyBalancedBeatsCheapest(balanced, cheapest) {
   const extraTime = cheapest.durationMinutes - balanced.durationMinutes;
   if (extraTime > 90) reasons.push(`${formatMinutes(extraTime)} longer`);
   const shortest = cheapest.connectionRisk?.shortest;
-  if (cheapest.connectionRisk?.level === "tight" && shortest) reasons.push(`tight ${shortest.id ?? shortest.name} connection`);
-  if (cheapest.connectionRisk?.level === "watch" && shortest) reasons.push(`short ${shortest.id ?? shortest.name} connection`);
+  if (cheapest.connectionRisk?.level === "tight" && shortest) reasons.push(`tight ${connectionPlaceLabel(shortest)} connection`);
+  if (cheapest.connectionRisk?.level === "watch" && shortest) reasons.push(`short ${connectionPlaceLabel(shortest)} connection`);
   if (cheapest.assumptions?.length) reasons.push("extra travel before the long-haul flight");
-  if (cheapest.confidence?.level === "Low") reasons.push("lower confidence");
+  if (cheapest.confidence?.level === "Low") reasons.push("less complete flight detail");
   if (!reasons.length) reasons.push("worse overall mix of price, time, stops, and connection risk");
-  return `The balanced pick wins because the cheaper option has ${reasons.slice(0, 3).join(", ")}.`;
+  return `Tradeoff: ${reasons.slice(0, 3).join(", ")}.`;
 }
 
 function formatShortDate(value) {

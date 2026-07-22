@@ -7,7 +7,7 @@ import { createPlanFromText, loadPlanTrip, validatePlan } from "../src/plans.js"
 import { buildRefreshPlan } from "../src/refresh-plan.js";
 import { createSnapshot, latestSnapshots } from "../src/snapshots.js";
 import { compareSnapshots } from "../src/snapshot-compare.js";
-import { writePlanDashboard } from "../src/dashboard.js";
+import { tradeoffContextLabel, writePlanDashboard } from "../src/dashboard.js";
 import { bestChoiceSentence, flightGoogleFlightsUrl, renderFlightDetailPanel } from "../src/dashboard-flight-components.js";
 import { signalizeText } from "../src/dashboard-signals.js";
 import { publicPlanTrip, writePublicPlanFixture } from "./fixtures/public-plan.js";
@@ -71,6 +71,11 @@ test("dashboard signal helper highlights decision phrases without swallowing pun
   assert.ok(html.includes('<span class="text-signal text-signal-good">Saves $16</span>,'));
   assert.ok(html.includes('<span class="text-signal text-signal-warn">adds 0h 10m</span>'));
   assert.ok(html.includes('<span class="text-signal text-signal-bad">tight connection</span>'));
+});
+
+test("decision tradeoff labels describe the actual price and time relationship", () => {
+  assert.equal(tradeoffContextLabel({ type: "cheaper-and-faster" }), "Lower price and shorter trip");
+  assert.equal(tradeoffContextLabel({ type: "worse" }), "Costs more and takes longer");
 });
 
 test("refresh plan is provider-aware and exposes atomic decision searches", async (context) => {
@@ -247,7 +252,9 @@ test("plan dashboard renders decision cards and route sections", async () => {
     outputPath
   });
   const html = await readFile(outputPath, "utf8");
-  assert.ok(html.includes("Best Decision Right Now"));
+  assert.ok(html.includes("Best Decisions Right Now"));
+  assert.ok(html.includes('<div class="decision-stack decision-list">'));
+  assert.match(html, /<article class="flight-card decision-lead"[\s\S]*?<div class="card-summary-row">[\s\S]*?<p>[\s\S]*?<span class="card-actions">/);
   assert.ok(html.includes("Decision + Budget"));
   assert.ok(html.includes("dashboard.dates.html"));
   assert.ok(html.includes("dashboard.routes.html"));
@@ -258,6 +265,9 @@ test("plan dashboard renders decision cards and route sections", async () => {
   assert.ok(html.includes("$965"));
   assert.ok(html.includes("21h 14m"));
   assert.ok(html.includes("The cleanest option right now"));
+  const currentRead = html.match(/<section class="plan-read">([\s\S]*?)<\/section>/)?.[1] ?? "";
+  assert.match(currentRead, /<\/details>&nbsp;[^<]/);
+  assert.doesNotMatch(currentRead, /<\/details> [A-Za-z]/);
   assert.doesNotMatch(html, /<\/details>\./);
   assert.match(html, /<summary><strong>[^<]+\.<\/strong><\/summary>/);
   assert.doesNotMatch(html, /<\/details> at /);
@@ -266,14 +276,14 @@ test("plan dashboard renders decision cards and route sections", async () => {
   const datesHtml = await readFile(path.join(dir, "dashboard.dates.html"), "utf8");
   assert.ok(datesHtml.includes("Best Dates To Consider"));
   assert.ok(datesHtml.includes("Route Price Scan"));
-  assert.ok(datesHtml.includes("Best Option On Each Date"));
+  assert.ok(datesHtml.includes("Best Flight by Departure Date"));
   assert.ok(datesHtml.includes("cheapest route-specific date"));
-  assert.ok(datesHtml.includes("compares it against the best flexible-date choice"));
-  assert.ok(datesHtml.includes("Best option on this date"));
-  assert.ok(datesHtml.includes("best flexible date"));
-  assert.ok(datesHtml.includes("cheapest that day"));
+  assert.ok(!datesHtml.includes("Use this when your departure day matters"));
+  assert.ok(!datesHtml.includes("Best option on this date"));
+  assert.ok(!datesHtml.includes("best flexible date"));
+  assert.ok(!datesHtml.includes("Also cheapest"));
   assert.ok(datesHtml.includes("price-bar"));
-  assert.ok(datesHtml.includes("complete date"));
+  assert.ok(datesHtml.includes("dates with results"));
   assert.ok(datesHtml.includes("flight-card date-card"));
   assert.ok(!datesHtml.includes("Same as best"));
   assert.ok(!datesHtml.includes("Small price change"));

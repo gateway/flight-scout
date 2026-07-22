@@ -8,7 +8,7 @@ const SOURCES = {
   countries: "https://davidmegginson.github.io/ourairports-data/countries.csv",
   regions: "https://davidmegginson.github.io/ourairports-data/regions.csv"
 };
-const ALLOWED_OPTIONS = new Set(["airports", "countries", "regions", "out", "meta", "generated-at"]);
+const ALLOWED_OPTIONS = new Set(["airports", "countries", "regions", "service-overrides", "out", "meta", "generated-at"]);
 const PASSENGER_AIRPORT_TYPES = new Set(["large_airport", "medium_airport", "small_airport"]);
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -16,16 +16,17 @@ const options = parseArgs(process.argv.slice(2));
 const inputs = {
   airports: await loadText(options.airports ?? SOURCES.airports),
   countries: await loadText(options.countries ?? SOURCES.countries),
-  regions: await loadText(options.regions ?? SOURCES.regions)
+  regions: await loadText(options.regions ?? SOURCES.regions),
+  serviceOverrides: await loadText(options.serviceOverrides ?? path.join(root, "data/airport-service-overrides.json"))
 };
 const data = buildSnapshot(inputs);
 const dataText = `${JSON.stringify(data)}\n`;
 const metadata = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   source: "OurAirports",
   license: "Public Domain",
   sourcePage: "https://ourairports.com/data/",
-  sourceUrls: SOURCES,
+  sourceUrls: { ...SOURCES, serviceOverrides: "data/airport-service-overrides.json" },
   generatedAt: options.generatedAt ?? new Date().toISOString(),
   airportCount: data.airports.length,
   sourceSha256: Object.fromEntries(Object.entries(inputs).map(([name, text]) => [name, sha256(text)])),
@@ -39,8 +40,9 @@ console.log(`Wrote ${data.airports.length} scheduled-service IATA airports.`);
 function buildSnapshot(source) {
   const countries = keyBy(parseCsv(source.countries), "code", "name");
   const regions = keyBy(parseCsv(source.regions), "code", "name");
+  const serviceOverrides = parseServiceOverrides(source.serviceOverrides);
   const airports = parseCsv(source.airports)
-    .filter((row) => row.scheduled_service === "yes"
+    .filter((row) => (row.scheduled_service === "yes" || serviceOverrides.has(row.iata_code))
       && PASSENGER_AIRPORT_TYPES.has(row.type)
       && /^[A-Z]{3}$/.test(row.iata_code))
     .map((row) => [
@@ -52,11 +54,22 @@ function buildSnapshot(source) {
       row.iso_region,
       regions.get(row.iso_region) ?? "",
       row.type,
-      metroKeywords(row.keywords)
+      metroKeywords(row.keywords),
+      serviceOverrides.get(row.iata_code) ?? true
     ]);
   assertUniqueAirportCodes(airports);
   airports.sort((left, right) => left[0].localeCompare(right[0]));
-  return { version: 1, airports };
+  return { version: 2, airports };
+}
+
+function parseServiceOverrides(text) {
+  const values = JSON.parse(text);
+  return new Map(Object.entries(values).map(([code, value]) => {
+    if (!/^[A-Z]{3}$/.test(code) || typeof value?.scheduledService !== "boolean") {
+      throw new Error(`Invalid airport service override ${code}`);
+    }
+    return [code, value.scheduledService];
+  }));
 }
 
 function assertUniqueAirportCodes(airports) {

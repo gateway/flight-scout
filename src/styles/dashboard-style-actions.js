@@ -47,6 +47,18 @@ export function dashboardStyleActions() {
   align-items: center;
   margin-top: 10px !important;
 }
+.card-summary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  margin-top: 10px;
+}
+.card-summary-row p { margin: 0; }
+.card-summary-row .card-actions {
+  align-self: start;
+  margin-top: 0 !important;
+}
 
 .btn,
 .icon-link,

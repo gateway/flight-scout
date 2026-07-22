@@ -1,0 +1,18 @@
+{
+  "US": {
+    "note": "United States transit generally requires immigration and customs processing, and checked bags may need to be collected and rechecked.",
+    "appliesToConnections": true
+  },
+  "CA": {
+    "note": "Canada may require an eTA or transit visa for a connection, depending on nationality and itinerary.",
+    "appliesToConnections": true
+  },
+  "GB": {
+    "note": "United Kingdom transit may require an ETA or transit visa, depending on nationality and whether you pass border control.",
+    "appliesToConnections": true
+  },
+  "AU": {
+    "note": "Australia may require a transit visa or other travel authority, depending on nationality and transit conditions.",
+    "appliesToConnections": true
+  }
+}

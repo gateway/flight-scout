@@ -40,10 +40,10 @@ test("airport data updater emits a deterministic licensed scheduled-service snap
     assert.equal(await readFile(output, "utf8"), firstDataText);
     assert.equal(await readFile(metadata, "utf8"), firstMetaText);
     assert.deepEqual(JSON.parse(firstDataText), {
-      version: 1,
+      version: 2,
       airports: [
-        ["AAA", "Alpha International", "Alpha", "AA", "Aland", "AA-1", "North", "large_airport", ["MET"]],
-        ["AAB", "Beta City", "Beta", "AA", "Aland", "AA-1", "North", "medium_airport", ["MET"]]
+        ["AAA", "Alpha International", "Alpha", "AA", "Aland", "AA-1", "North", "large_airport", ["MET"], true],
+        ["AAB", "Beta City", "Beta", "AA", "Aland", "AA-1", "North", "medium_airport", ["MET"], true]
       ]
     });
 
@@ -55,7 +55,7 @@ test("airport data updater emits a deterministic licensed scheduled-service snap
       generatedAt: meta.generatedAt,
       airportCount: meta.airportCount
     }, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       source: "OurAirports",
       license: "Public Domain",
       generatedAt: "2026-07-17T00:00:00.000Z",
@@ -64,7 +64,27 @@ test("airport data updater emits a deterministic licensed scheduled-service snap
     assert.match(meta.sourceSha256.airports, /^[a-f0-9]{64}$/);
     assert.match(meta.sourceSha256.countries, /^[a-f0-9]{64}$/);
     assert.match(meta.sourceSha256.regions, /^[a-f0-9]{64}$/);
+    assert.match(meta.sourceSha256.serviceOverrides, /^[a-f0-9]{64}$/);
     assert.match(meta.dataSha256, /^[a-f0-9]{64}$/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("airport data updater preserves a service correction for exact lookup", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "flight-airport-service-"));
+  try {
+    const args = await fixtureArgs(root);
+    const airportsPath = path.join(root, "airports.csv");
+    const overridesPath = path.join(root, "service-overrides.json");
+    await writeFile(airportsPath, `${AIRPORTS_CSV}5,LFPB,large_airport,Paris-Le Bourget Airport,0,0,0,EU,FR,FR-IDF,Paris,yes,LFPB,LBG,LFPB,,,,PAR\n`);
+    await writeFile(overridesPath, `${JSON.stringify({ LBG: { scheduledService: false } })}\n`);
+
+    await execFileAsync(process.execPath, [UPDATE_SCRIPT, ...args, "--service-overrides", overridesPath]);
+
+    const snapshot = JSON.parse(await readFile(path.join(root, "airports.json"), "utf8"));
+    const leBourget = snapshot.airports.find((airport) => airport[0] === "LBG");
+    assert.equal(leBourget?.[9], false);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

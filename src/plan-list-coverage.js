@@ -20,5 +20,5 @@ export function dateWindowDays(plan) {
   for (const current = new Date(start); current <= end; current.setUTCDate(current.getUTCDate() + 1)) {
     dates.push(current.toISOString().slice(0, 10));
   }
-  return dates.slice(0, 10);
+  return dates.slice(0, 14);
 }

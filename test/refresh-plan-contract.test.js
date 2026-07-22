@@ -44,6 +44,7 @@ test("refresh manifest projection stays stable across responsibility extraction"
   assert.deepEqual(await refreshPlanModule.loadRefreshBudget(root), {
     requestDelayMs: 1234,
     staleAfterHours: 12,
+    maxWindowDays: 14,
     modes: {
       light: { maxCalls: 1 },
       standard: { maxCalls: 2 },
@@ -83,6 +84,7 @@ function expectedManifest() {
     provider: "fli-google-flights",
     explanation: "Refresh the active date window and route ideas without broad gateway exploration.",
     requestDelayMs: 1234,
+    maxWindowDays: 14,
     totalCandidateCalls: 1,
     selectedCallCount: 1,
     fliCallCount: 1,

@@ -18,6 +18,7 @@ test("shared flight-component facade preserves its public exports", () => {
     "optionRouteLine",
     "renderAssumptions",
     "renderCardHead",
+    "renderCardSummaryRow",
     "renderFlightDetailPanel",
     "renderPainBreakdown"
   ]);

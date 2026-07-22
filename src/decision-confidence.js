@@ -37,5 +37,7 @@ export function connectionRiskSummary(layovers) {
   if (unknown) return { level: "unknown", shortest: unknown, longest, label: `${unknown.id ?? unknown.name ?? "Connection"} time needs verification` };
   if (!shortest) return { level: "none", shortest, longest, label: "No layover risk flagged" };
   if (shortest.duration < WATCH_LAYOVER_MINUTES) return { level: "watch", shortest, longest, label: `Watch ${shortest.id ?? shortest.name} connection` };
+  const overnight = values.find((layover) => layover.overnight);
+  if (overnight) return { level: "watch", shortest, longest, overnight, label: `Overnight ${overnight.id ?? overnight.name} connection` };
   return { level: "comfortable", shortest, longest, label: "Connection timing looks workable" };
 }

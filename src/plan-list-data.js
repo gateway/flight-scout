@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { compareSnapshots } from "./snapshot-compare.js";
 import { analyzeSnapshotDecision } from "./snapshot-decision.js";
+import { buildPriceHistory } from "./price-history.js";
 
 // Owns the read-only projection from persisted plans and snapshots to plan-list items.
 export async function loadSavedPlans(root) {
@@ -25,6 +26,7 @@ export async function loadSavedPlans(root) {
       previous,
       decision: analyzeSnapshotDecision({ plan, trip, latest }),
       comparison: compareSnapshots(latest, previous),
+      priceHistory: await buildPriceHistory(path.join(plansDir, entry.name)),
       dashboardHref: `${plan.id}.dashboard.html`,
       planPath: `plans/${entry.name}/plan.json`,
       status: planStatus(plan)

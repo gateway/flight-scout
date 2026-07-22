@@ -4,6 +4,8 @@ import { runPlanRefresh } from "./commands/plan-refresh-command.js";
 import { setPlanArchiveStatus } from "./plan-archive.js";
 import { loadSavedPlans, writeAppIndex, writePlanListDashboard } from "./plan-list-dashboard.js";
 import { writeRefreshLowdown } from "./refresh-summary.js";
+import { extendPlanWindow as persistPlanWindowExtension } from "./plan-window-extension.js";
+import { loadRefreshBudget } from "./refresh-budget.js";
 
 // Plan actions own filesystem and refresh orchestration; HTTP concerns stay in the route module.
 export function createPlanActions({ root }) {
@@ -39,7 +41,12 @@ export function createPlanActions({ root }) {
     return writeRefreshLowdown({ root, plans, refreshed });
   }
 
-  return { archivePlan, refreshSelection, regeneratePlanList, writeLatestLowdown };
+  async function extendPlanWindow(input) {
+    const config = await loadRefreshBudget(root);
+    return persistPlanWindowExtension({ root, maxWindowDays: config.maxWindowDays, ...input });
+  }
+
+  return { archivePlan, extendPlanWindow, refreshSelection, regeneratePlanList, writeLatestLowdown };
 }
 
 async function refreshOnePlan(planPath, body, onEvent) {

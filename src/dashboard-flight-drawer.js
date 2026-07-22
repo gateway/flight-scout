@@ -7,6 +7,8 @@ import {
   optionHeadline,
   renderPainBreakdown
 } from "./dashboard-flight-option.js";
+import { localConnectionTime } from "./connection-duration.js";
+import { connectionCaveatsForOption, SEPARATE_TICKET_CAVEAT } from "./connection-caveats.js";
 
 // Drawer composition owns facts and booking advice while timeline markup remains independently testable.
 export function renderFlightDetailPanel(option, label = "Flight detail") {
@@ -56,6 +58,7 @@ function stopCountText(option) {
 
 function renderDrawerAdvice(option) {
   const notes = [];
+  const caveats = option.connectionCaveats ?? connectionCaveatsForOption(option);
   const shortest = option.connectionRisk?.shortest;
   if (option.connectionRisk?.level === "unknown" && shortest) {
     notes.push(`The connection time at ${shortest.id ?? shortest.name} was not returned. Verify it before booking.`);
@@ -65,6 +68,13 @@ function renderDrawerAdvice(option) {
     notes.push(`The shortest connection is ${formatMinutes(shortest.duration)} at ${shortest.id ?? shortest.name}. That is workable, but still worth reviewing carefully.`);
   }
   for (const item of option.assumptions ?? []) notes.push(`${item.label}: ${item.text}`);
+  const separateTicketAlreadyShown = (option.assumptions ?? []).some((item) => item.text === SEPARATE_TICKET_CAVEAT);
+  if (caveats.separateTicket && !separateTicketAlreadyShown) notes.push(`Separate tickets: ${SEPARATE_TICKET_CAVEAT}`);
+  for (const layover of caveats.overnightLayovers ?? []) {
+    notes.push(`Overnight layover at ${layover.id ?? layover.name ?? "connection"}: arrives ${localConnectionTime(layover.arrivalTime) ?? "time unknown"}, departs ${localConnectionTime(layover.departureTime) ?? "time unknown"}. Plan for a night in the airport or a hotel.`);
+  }
+  for (const item of caveats.transitNotes ?? []) notes.push(item.note);
+  if (caveats.transitDisclaimer) notes.push(caveats.transitDisclaimer);
   if (option.kind === "composed-stopover") {
     const finalStop = option.onward?.arrivalAirport ? ` to ${option.onward.arrivalAirport}` : "";
     notes.push(`This is a split trip: fly to ${option.stopoverLabel}, stay ${option.nights} night${option.nights === 1 ? "" : "s"}, then take the separate flight${finalStop}. Compare the real total with hotel and transfer time included.`);

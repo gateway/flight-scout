@@ -32,15 +32,22 @@ test("route evidence renders full price history and the historical low marker", 
 
     await writePlanDashboard({ plan, planDir: root, snapshots, snapshotHistory, outputPath });
 
+    const decisionHtml = await readFile(outputPath, "utf8");
     const routesHtml = await readFile(path.join(root, "outputs", "london-to-sydney.routes.html"), "utf8");
-    assert.match(routesHtml, /Price history/);
-    assert.match(routesHtml, /6 saved prices/);
-    assert.match(routesHtml, /Up \$30 since the previous saved price/);
-    assert.match(routesHtml, /Down \$140 across all 6 saved prices/);
+    assert.match(decisionHtml, /Price Changes/);
+    assert.match(decisionHtml, /Today&#39;s \$860 is near the low end of this plan&#39;s saved prices across 6 checks since September 1\./);
+    assert.match(decisionHtml, /Cheapest seen: \$830 on September 5, 2026/);
+    assert.match(decisionHtml, /Earlier checks/);
+    assert.match(decisionHtml, /Latest check/);
+    assert.match(decisionHtml, /Price changes across 6 saved checks from September 1, 2026 through September 6, 2026; latest price \$860/);
+    assert.equal((decisionHtml.match(/data-price-history-point/g) ?? []).length, 6);
+    assert.match(routesHtml, /Price Changes/);
+    assert.match(routesHtml, /6 saved checks/);
+    assert.match(routesHtml, /Earlier checks/);
+    assert.match(routesHtml, /Latest check/);
+    assert.match(routesHtml, /Today&#39;s \$860 is near the low end of this plan&#39;s saved prices across 6 checks since September 1\./);
     assert.match(routesHtml, /Cheapest seen: \$830/);
-    assert.match(routesHtml, /data-history-point/g);
-    assert.equal((routesHtml.match(/data-history-point/g) ?? []).length, 6);
-    assert.match(routesHtml, /history-point cheapest/);
+    assert.equal((routesHtml.match(/data-price-history-point/g) ?? []).length, 6);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -56,8 +63,10 @@ test("route evidence explains a single saved price without duplicate comparison 
 
     await writePlanDashboard({ plan, planDir: root, snapshots, snapshotHistory, outputPath });
 
+    const decisionHtml = await readFile(outputPath, "utf8");
     const routesHtml = await readFile(path.join(root, "outputs", "london-to-sydney.routes.html"), "utf8");
-    assert.match(routesHtml, /Only one saved price so far; price movement will show after the next refresh\./);
+    assert.match(decisionHtml, /Only one saved check so far; price history builds with each refresh\./);
+    assert.match(routesHtml, /Only one saved check so far; price history builds with each refresh\./);
     assert.doesNotMatch(routesHtml, /More history is needed/);
   } finally {
     await rm(root, { recursive: true, force: true });

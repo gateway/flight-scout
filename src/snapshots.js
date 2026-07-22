@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { jsonReadWarning, readJsonFile } from "./json-files.js";
 import { minBy } from "./collections.js";
+import { derivePriceHistorySummary } from "./price-history.js";
 
 export function snapshotRoot(planDir) {
   return path.join(planDir, "snapshots");
@@ -88,7 +89,8 @@ function summarizeRanked(rankedFlights) {
     completeOptions: complete.length,
     balanced: summarizeFlight(balanced),
     cheapest: summarizeFlight(cheapest),
-    fastest: summarizeFlight(fastest)
+    fastest: summarizeFlight(fastest),
+    ...derivePriceHistorySummary(rankedFlights)
   };
 }
 

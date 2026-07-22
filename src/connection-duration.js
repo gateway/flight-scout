@@ -11,6 +11,8 @@ export const CONNECTION_TYPE = Object.freeze({
   INTERNATIONAL_TO_DOMESTIC: "international-to-domestic"
 });
 
+export const OVERNIGHT_LAYOVER_MINUTES = 240;
+
 export function classifyConnectionDuration(durationMinutes, minimumMinutes) {
   if (!Number.isFinite(durationMinutes)) {
     return { status: CONNECTION_DURATION.UNKNOWN, durationMinutes: null, minimumMinutes };
@@ -20,6 +22,35 @@ export function classifyConnectionDuration(durationMinutes, minimumMinutes) {
     durationMinutes,
     minimumMinutes
   };
+}
+
+// Uses local clock text directly; converting through Date would apply the machine timezone.
+export function isOvernightLayover(layover = {}) {
+  if (!Number.isFinite(layover.duration) || layover.duration < OVERNIGHT_LAYOVER_MINUTES) return false;
+  const arrival = localClockMinutes(layover.arrivalTime);
+  const departure = localClockMinutes(layover.departureTime);
+  if (!Number.isFinite(arrival) || !Number.isFinite(departure)) return false;
+  const arrivesLate = arrival >= 22 * 60;
+  const arrivesBeforeDawn = arrival <= 6 * 60;
+  const departsBeforeDawn = departure <= 6 * 60;
+  const crossesMidnight = departure < arrival;
+  return arrivesLate || arrivesBeforeDawn || departsBeforeDawn || crossesMidnight;
+}
+
+// Layovers from older providers may omit their endpoint times even when the leg data has them.
+export function enrichLayoversWithTimes(layovers = [], legs = []) {
+  return layovers.map((layover, index) => {
+    const arrivalTime = layover.arrivalTime ?? legs[index]?.arrival_airport?.time ?? null;
+    const departureTime = layover.departureTime ?? legs[index + 1]?.departure_airport?.time ?? null;
+    const enriched = { ...layover, arrivalTime, departureTime };
+    return { ...enriched, overnight: isOvernightLayover(enriched) };
+  });
+}
+
+export function localConnectionTime(value) {
+  if (typeof value !== "string") return null;
+  const match = value.match(/(?:T|\s|^)(\d{1,2}:\d{2})(?::\d{2})?(?:\s|$|[+-]|Z)/);
+  return match?.[1] ?? null;
 }
 
 // Geography is explicit because airport names and codes do not reliably reveal
@@ -71,4 +102,14 @@ function resolveConnectionType(layover, rules) {
   return value === CONNECTION_TYPE.DOMESTIC || value === CONNECTION_TYPE.INTERNATIONAL_TO_DOMESTIC
     ? value
     : CONNECTION_TYPE.UNKNOWN;
+}
+
+function localClockMinutes(value) {
+  if (typeof value !== "string") return null;
+  const match = value.match(/(?:T|\s|^)(\d{1,2}):(\d{2})(?::\d{2})?(?:\s|$|[+-]|Z)/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
 }

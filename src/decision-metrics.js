@@ -1,5 +1,6 @@
 import { formatMinutes as formatDisplayMinutes, money } from "./html-utils.js";
 import { challengerConcern } from "./decision-copy.js";
+import { enrichLayoversWithTimes } from "./connection-duration.js";
 
 // Owns option measurements and tradeoff math shared by normalization and confidence analysis.
 export function worthIt(candidate, baseline) {
@@ -123,13 +124,21 @@ export function optionLegs(option) {
 
 export function optionLayovers(option) {
   if (!option) return [];
-  if (option.kind === "composed-stopover") return [...(option.inbound.layovers ?? []), ...(option.onward.layovers ?? [])];
-  if (option.kind === "composed-round-trip") return [...(option.outbound.layovers ?? []), ...(option.returnFlight.layovers ?? [])];
-  return option.layovers ?? [];
+  if (option.kind === "composed-stopover") {
+    return [...flightLayovers(option.inbound), ...flightLayovers(option.onward)];
+  }
+  if (option.kind === "composed-round-trip") {
+    return [...flightLayovers(option.outbound), ...flightLayovers(option.returnFlight)];
+  }
+  return flightLayovers(option);
 }
 
 function isComposed(option) {
   return option.kind === "composed-stopover" || option.kind === "composed-round-trip";
+}
+
+function flightLayovers(flight) {
+  return enrichLayoversWithTimes(flight?.layovers ?? [], flight?.legs ?? []);
 }
 
 export function shortestLayover(layovers) {

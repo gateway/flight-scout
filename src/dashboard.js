@@ -5,13 +5,17 @@ import { analyzeDecision, worthIt } from "./decision-analysis.js";
 import { escapeHtml, formatDateTime, money } from "./html-utils.js";
 import { renderPageShell } from "./dashboard-shell.js";
 import { createPageRenderers } from "./dashboard-pages.js";
-import { bestChoiceSentence, connectionPill, optionDate, renderAssumptions, renderCardHead, renderPainBreakdown } from "./dashboard-flight-components.js";
+import { bestChoiceSentence, connectionPill, optionDate, renderAssumptions, renderCardHead, renderCardSummaryRow, renderPainBreakdown } from "./dashboard-flight-components.js";
 import { signalizeText } from "./dashboard-signals.js";
 import { renderBudgetOpportunity, budgetAlternateStartOpportunity } from "./dashboard-budget.js";
 import { renderDateHighlights, renderPriceGraph, renderDateOpportunities } from "./dashboard-date-page.js";
 import { groupByRouteIdea, renderRoute } from "./dashboard-routes-page.js";
 import { renderRefreshStory } from "./dashboard-refresh-story.js";
 import { humanizeRefreshReasons } from "./refresh-plan-presentation.js";
+import { buildPriceHistory } from "./price-history.js";
+import { cheapestCompleteOptionsByDate } from "./date-option-selection.js";
+import { detectWindowEdgeSuggestion } from "./window-edge.js";
+import { DEFAULT_REFRESH_BUDGET } from "./refresh-budget.js";
 
 export async function writePlanDashboard({ plan, planDir, trip = null, snapshots = [], snapshotHistory = null, refreshPlan = null, outputPath }) {
   const [current, previous] = snapshots;
@@ -21,6 +25,12 @@ export async function writePlanDashboard({ plan, planDir, trip = null, snapshots
   const analysis = analyzeDecision({ plan, trip, routeGroups, current, refreshPlan });
   analysis.snapshotHistory = snapshotHistory?.snapshots ?? snapshots.map((snapshot) => snapshot.meta);
   analysis.priceHistory = snapshotHistory ?? { snapshotCount: snapshots.length, routes: [] };
+  analysis.planPriceHistory = await buildPriceHistory(planDir);
+  analysis.windowEdgeSuggestion = detectWindowEdgeSuggestion({
+    departureWindow: trip?.departureWindow ?? plan.intent?.dateCoverage,
+    pricesByDate: cheapestCompleteOptionsByDate(analysis.options),
+    maxWindowDays: refreshPlan?.maxWindowDays ?? DEFAULT_REFRESH_BUDGET.maxWindowDays
+  });
   const pages = planPagePaths(plan, outputPath);
   const planPath = `plans/${path.basename(planDir)}/plan.json`;
   const context = { plan, planPath, current, comparison, routeGroups, analysis, refreshPlan, trip, pages };
@@ -104,13 +114,13 @@ function renderDecisionSummary(analysis) {
     renderTradeoffCard("Shortest travel time", analysis.fastest, analysis.best),
     analysis.stopover ? renderTradeoffCard("Best stopover", analysis.stopover, analysis.best) : ""
   ];
-  return `<div class="decision-stack">${cards.filter(Boolean).join("")}</div>`;
+  return `<div class="decision-stack decision-list">${cards.filter(Boolean).join("")}</div>`;
 }
 
 function renderDecisionLead(option, coverage) {
   return `<article class="flight-card decision-lead" id="best-current-choice">
-    ${renderCardHead("Best current choice", option)}
-    <p>${escapeHtml(bestChoiceSentence(option))}</p>
+    ${renderCardHead("Best current choice", option, { hideActions: true })}
+    ${renderCardSummaryRow(escapeHtml(bestChoiceSentence(option)), option)}
     <div class="meta">
       <span class="pill">${escapeHtml(optionDate(option) ?? "")}</span>
       ${connectionPill(option)}
@@ -126,8 +136,8 @@ function renderTradeoffCard(label, option, best) {
   const tradeoff = worthIt(option, best);
   const contextLabel = tradeoffContextLabel(tradeoff);
   return `<article class="flight-card decision-card">
-    ${renderCardHead(label, option)}
-    <p>${signalizeText(tradeoff?.sentence ?? "Comparable to the current best-balanced option.")}</p>
+    ${renderCardHead(label, option, { hideActions: true })}
+    ${renderCardSummaryRow(signalizeText(tradeoff?.sentence ?? "Comparable to the current best-balanced option."), option)}
     <div class="meta">
       ${connectionPill(option)}
       ${contextLabel ? `<span class="pill">${escapeHtml(contextLabel)}</span>` : ""}
@@ -137,14 +147,15 @@ function renderTradeoffCard(label, option, best) {
   </article>`;
 }
 
-function tradeoffContextLabel(tradeoff) {
+export function tradeoffContextLabel(tradeoff) {
   if (!tradeoff) return "";
+  if (tradeoff.type === "cheaper-and-faster") return "Lower price and shorter trip";
   if (tradeoff.type === "cheaper") return "Lower price, similar travel time";
   if (tradeoff.type === "faster") return "Faster without extra cost";
   if (tradeoff.type === "cheaper-but-longer") return "Cheaper, but more travel time";
   if (tradeoff.type === "faster-but-costlier") return "Faster, but costs more";
   if (tradeoff.type === "same") return "Same value";
-  return "Worse tradeoff";
+  return "Costs more and takes longer";
 }
 
 function renderRefreshGuidance(analysis, refreshPlan) {

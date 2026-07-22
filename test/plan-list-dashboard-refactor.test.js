@@ -10,7 +10,9 @@ test("plan-list public seam preserves loaded data and generated page semantics",
   const root = await mkdtemp(path.join(tmpdir(), "flight-plan-list-refactor-"));
   const planDir = path.join(root, "plans", "london-to-sydney");
   const previousDir = path.join(planDir, "snapshots", "20990101T000000Z");
+  const currentDir = path.join(planDir, "snapshots", "20990102T000000Z");
   await mkdir(previousDir, { recursive: true });
+  await mkdir(currentDir, { recursive: true });
 
   const plan = fixturePlan();
   const current = fixtureSnapshot("20990102T000000Z", 880);
@@ -20,6 +22,8 @@ test("plan-list public seam preserves loaded data and generated page semantics",
   await writeJson(path.join(planDir, "ranked.json"), current.rankedFlights);
   await writeJson(path.join(previousDir, "snapshot.json"), previous);
   await writeJson(path.join(previousDir, "ranked.json"), previous.rankedFlights);
+  await writeJson(path.join(currentDir, "snapshot.json"), current);
+  await writeJson(path.join(currentDir, "ranked.json"), current.rankedFlights);
 
   const loaded = await loadSavedPlans(root);
   assert.equal(loaded.length, 1);
@@ -59,6 +63,7 @@ test("plan-list public seam preserves loaded data and generated page semantics",
       "Open current read",
       "Compare picks",
       "Open refresh details",
+      "Price trend with 2 saved checks",
       "Open date scan",
       "Open routes page"
     ],
@@ -67,6 +72,9 @@ test("plan-list public seam preserves loaded data and generated page semantics",
     hasRefreshApi: true
   });
   assert.match(html, /<h3>London to Sydney<\/h3>/);
+  assert.match(html, /class="price-trend-fragment"/);
+  assert.match(html, /Lowest seen: \$880/);
+  assert.equal((html.match(/data-price-history-point/g) ?? []).length, 2);
   assert.equal(await readFile(path.join(root, "outputs", "index.html"), "utf8"), html);
   assert.match(await readFile(path.join(root, "outputs", "plans.archived.html"), "utf8"), /Archived Flight Plans/);
 

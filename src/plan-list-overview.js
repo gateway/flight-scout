@@ -7,6 +7,7 @@ import { dateWindowDays } from "./plan-list-coverage.js";
 import { latestRefreshText, planIconLink } from "./plan-list-components.js";
 import { evaluateWatchRules } from "./watch-rules.js";
 import { cheapestCompleteOptionsByDate } from "./date-option-selection.js";
+import { renderPriceTrendFragment } from "./dashboard-price-history.js";
 
 // Owns plan-list overview analysis and its compact decision/date-scan presentation.
 export function renderOverview(activePlans, dashboardPrefix) {
@@ -19,7 +20,7 @@ export function renderOverview(activePlans, dashboardPrefix) {
   </section>`;
 }
 
-function renderPlanOverview({ plan, latest, decision, dashboardHref, comparison }, dashboardPrefix) {
+function renderPlanOverview({ plan, latest, decision, dashboardHref, comparison, priceHistory }, dashboardPrefix) {
   const decisionHref = `${dashboardPrefix}${dashboardHref}`;
   const datesHref = `${dashboardPrefix}${pageHref(plan.id, "dates")}`;
   const routesHref = `${dashboardPrefix}${pageHref(plan.id, "routes")}`;
@@ -54,6 +55,7 @@ function renderPlanOverview({ plan, latest, decision, dashboardHref, comparison 
       </div>
       ${planIconLink(decisionHref.replace(/\.dashboard\.html$/, ".refresh.html"), "Open refresh details", "↻")}
     </div>
+    ${renderPriceTrendFragment(priceHistory)}
     <div class="overview-row">
       <div>
         <div class="label">Route date scan</div>

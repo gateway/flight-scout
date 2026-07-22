@@ -1,5 +1,5 @@
 // Stable public facade for shared flight-card rendering across every dashboard page.
-export { renderCardHead } from "./dashboard-flight-card.js";
+export { renderCardHead, renderCardSummaryRow } from "./dashboard-flight-card.js";
 export { flightActionLinks, flightIconLink, flightDetailDrawer } from "./dashboard-flight-actions.js";
 export { renderFlightDetailPanel } from "./dashboard-flight-drawer.js";
 export {

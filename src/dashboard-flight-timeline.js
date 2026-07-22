@@ -1,5 +1,6 @@
 import { displayAirlineName } from "./airline-display.js";
 import { escapeAttr, escapeHtml, formatMinutes } from "./html-utils.js";
+import { enrichLayoversWithTimes, localConnectionTime } from "./connection-duration.js";
 
 // Timeline rendering owns leg, amenity, stopover-break, and layover signal markup.
 export function renderDrawerTimeline(option) {
@@ -33,7 +34,8 @@ function renderTimelineParts(input) {
 function renderFlightTimeline(option) {
   const legs = option.legs ?? [];
   if (!legs.length) return "";
-  return `<div class="flight-timeline">${legs.map((leg, index) => `${renderTimelineLeg(leg)}${renderTimelineLayover(option.layovers?.[index])}`).join("")}</div>`;
+  const layovers = enrichLayoversWithTimes(option.layovers ?? [], legs);
+  return `<div class="flight-timeline">${legs.map((leg, index) => `${renderTimelineLeg(leg)}${renderTimelineLayover(layovers[index])}`).join("")}</div>`;
 }
 
 function renderTimelineLeg(leg) {
@@ -53,7 +55,10 @@ function renderTimelineLeg(leg) {
 
 function renderTimelineLayover(layover) {
   if (!layover) return "";
-  return `<div class="timeline-layover ${layoverClass(layover)}"><strong>${escapeHtml(formatMinutes(layover.duration) ?? "n/a")} layover</strong><span>${escapeHtml(layover.name ?? layover.id ?? "")}${layover.id ? ` (${escapeHtml(layover.id)})` : ""}</span></div>`;
+  const overnight = layover.overnight
+    ? `<small>Overnight layover at ${escapeHtml(layover.id ?? layover.name ?? "connection")}: arrives ${escapeHtml(localConnectionTime(layover.arrivalTime) ?? "time unknown")}, departs ${escapeHtml(localConnectionTime(layover.departureTime) ?? "time unknown")}.</small>`
+    : "";
+  return `<div class="timeline-layover ${layoverClass(layover)}${layover.overnight ? " is-overnight" : ""}"><strong>${escapeHtml(formatMinutes(layover.duration) ?? "n/a")} layover</strong><span>${escapeHtml(layover.name ?? layover.id ?? "")}${layover.id ? ` (${escapeHtml(layover.id)})` : ""}</span>${overnight}</div>`;
 }
 
 function timePart(value) {

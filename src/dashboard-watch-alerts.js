@@ -1,5 +1,5 @@
 import { formatMinutes, money } from "./html-utils.js";
-import { renderCardHead, renderPainBreakdown } from "./dashboard-flight-components.js";
+import { connectionPill, renderAssumptions, renderCardHead, renderPainBreakdown } from "./dashboard-flight-components.js";
 import { metricSignal } from "./dashboard-signals.js";
 
 // Renders saved-target outcomes with the same flight-card and drawer components
@@ -20,7 +20,9 @@ function renderAlert({ label, outcome = "met", matched, misses = {}, flight }) {
     <span class="watch-outcome-marker" aria-hidden="true">${met ? "✓" : "!"}</span>
     ${renderCardHead(labelText, flight)}
     <p>${thresholdSentence({ outcome, matched, misses, flight })}</p>
+    <div class="meta">${connectionPill(flight)}</div>
     ${renderPainBreakdown(flight)}
+    ${renderAssumptions(flight)}
   </article>`;
 }
 

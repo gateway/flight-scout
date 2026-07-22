@@ -72,6 +72,10 @@ test("airport resolver prefers dataset-qualified places over substring aliases",
 });
 
 test("airport resolver keeps dataset-backed multi-airport cities after alias removal", () => {
+  assert.deepEqual(resolveAirportPlace("Paris").place, {
+    label: "Paris",
+    airports: ["CDG", "ORY"]
+  });
   assert.deepEqual(resolveAirportPlace("Bangkok").place, {
     label: "Bangkok",
     airports: ["BKK", "DMK"]

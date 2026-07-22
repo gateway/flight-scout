@@ -1,4 +1,4 @@
-import { connectionPill, optionDate } from "./dashboard-flight-components.js";
+import { connectionPill, optionDate, renderAssumptions } from "./dashboard-flight-components.js";
 import { metricSignal } from "./dashboard-signals.js";
 import { dateOnly, escapeAttr, escapeHtml, formatHumanDate, formatMinutes, money } from "./html-utils.js";
 import { airlineDisplay } from "./airline-display.js";
@@ -49,6 +49,7 @@ function renderCrossPlanPick({ kind, option, item }, dashboardPrefix) {
       <span>${connectionSignal(option)}</span>
       <span>${coverageSignal(item)}</span>
     </div>
+    ${renderAssumptions(option)}
     <div class="cross-plan-action-row">
       <div class="meta cross-plan-movement">
         ${renderMovementRead(item.comparison)}

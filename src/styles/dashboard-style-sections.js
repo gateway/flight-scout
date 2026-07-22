@@ -198,6 +198,13 @@ summary { cursor: pointer; color: var(--accent); font-weight: 800; }
 }
 .timeline-layover strong { font-size: 18px; line-height: 1.1; }
 .timeline-layover span { color: var(--muted); font-weight: 760; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.timeline-layover small {
+  grid-column: 2 / -1;
+  color: var(--warn);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.timeline-layover.is-overnight { display: grid; grid-template-columns: auto minmax(0, 1fr); }
 .layover-tight { color: var(--bad); }
 .layover-watch { color: var(--warn); }
 .layover-good { color: var(--good); }

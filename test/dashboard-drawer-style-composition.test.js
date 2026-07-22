@@ -12,8 +12,8 @@ test("drawer and responsive CSS stays byte-stable while ownership is extracted",
   const css = dashboardStyleDrawerResponsive();
   const hash = createHash("sha256").update(css).digest("hex");
 
-  assert.equal(css.length, 8091);
-  assert.equal(hash, "7cea72774212e8e7ad4465f88af95a9f37f249ffebfb016bc6db95199791272f");
+  assert.equal(css.length, 8008);
+  assert.equal(hash, "c82b660e9f5fe2a6a7ad3c01166b798455ce13198c084629c790d5b96caf4154");
 });
 
 test("drawer, page content, and viewport rules have focused owners", async () => {

@@ -178,6 +178,7 @@ test("local server accepts a matching LAN-style Host and Origin", async () => {
 test("local server rejects an untrusted browser origin before every state-changing handler", async () => {
   const routes = [
     "/api/plans/archive",
+    "/api/plans/extend-window",
     "/api/plans/refresh",
     "/api/plans/refresh-all",
     "/api/plans/refresh/start"
