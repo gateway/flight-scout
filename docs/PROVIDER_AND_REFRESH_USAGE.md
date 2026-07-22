@@ -35,7 +35,6 @@ The current requirements file pins:
 
 ```text
 flights==0.9.0
-click==8.3.1
 ```
 
 The local adapter imports the package as `fli`, which is expected for the `flights` Python package.

@@ -64,11 +64,10 @@ The normal `npm run serve` command only listens on `127.0.0.1`, which means the 
 
 `npm run setup` creates the project virtual environment for you, installs the flight-search runtime, and writes the local `.env` file. You do not need to manually create a Python environment.
 
-The pinned Python runtime packages are:
+The single pinned Python runtime package is:
 
 ```text
 flights==0.9.0
-click==8.3.1
 ```
 
 The search layer requests USD results with US English locale settings so prices stay consistent even when you are traveling.
