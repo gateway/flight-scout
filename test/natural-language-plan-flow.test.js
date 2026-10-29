@@ -320,7 +320,8 @@ test("saved plan creation stops when a non-USD budget needs clarification", asyn
   await rm(dir, { recursive: true, force: true });
 });
 
-test("new natural-language plan creates independent trip spec and dashboard", async () => {
+test("new natural-language plan creates independent trip spec and dashboard", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-07-01T00:00:00Z") });
   const dir = await mkdtemp(path.join(tmpdir(), "flight-nl-plan-"));
   const created = await createPlanFromText({
     text: "Do not run it yet. Find me a direct flight from Chiang Mai to Bangkok around August 1, 2026, plus or minus three days, under $100 USD.",

@@ -1,1 +1,5 @@
 flights==0.9.0
+
+# Keep venv installation/build tooling above known security fixes.
+pip>=26.2
+setuptools>=84.1.0

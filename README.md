@@ -34,7 +34,7 @@ It is built for personal flight research: compare dates, routes, prices, total t
 
 You need:
 
-- Node.js 20 or newer
+- Node.js 24.22.2 LTS (the version in `.nvmrc`)
 - Python 3.11 or newer
 
 Clone the repo, install the local stack, and start the dashboard:
@@ -47,6 +47,8 @@ npm run serve
 ```
 
 Then open [http://127.0.0.1:8765/](http://127.0.0.1:8765/).
+
+If you use nvm, run `nvm install` and `nvm use` inside the repo before setup. CI reads the same `.nvmrc` file.
 
 Want to open it from another device on your LAN or Tailscale network?
 
@@ -64,11 +66,13 @@ The normal `npm run serve` command only listens on `127.0.0.1`, which means the 
 
 `npm run setup` creates the project virtual environment for you, installs the flight-search runtime, and writes the local `.env` file. You do not need to manually create a Python environment.
 
-The single pinned Python runtime package is:
+The direct Python runtime dependency is:
 
 ```text
 flights==0.9.0
 ```
+
+Setup installs `src/providers/fli/requirements.lock`, which pins the transitive dependencies and verifies package hashes. See [dependency maintenance](docs/DEPENDENCY_MAINTENANCE.md) for the update and audit procedure.
 
 The search layer requests USD results with US English locale settings so prices stay consistent even when you are traveling.
 If you omit the year, the next future occurrence of that date is used. Flight budgets are entered in USD; another currency prompts for a USD budget instead of being silently converted.

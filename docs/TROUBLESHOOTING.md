@@ -19,7 +19,7 @@ npm run setup
 If you manage Python manually, install the dependency and point `.env` at that Python:
 
 ```bash
-python -m pip install -r src/providers/fli/requirements.txt
+python -m pip install --require-hashes -r src/providers/fli/requirements.lock
 FLI_PYTHON=/path/to/your/python
 ```
 

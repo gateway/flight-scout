@@ -27,7 +27,7 @@ That creates a project-local Python virtual environment in `.venv`, installs the
 Manual setup is still supported:
 
 ```bash
-python -m pip install -r src/providers/fli/requirements.txt
+python -m pip install --require-hashes -r src/providers/fli/requirements.lock
 FLI_PYTHON=/path/to/your/python
 ```
 
@@ -37,7 +37,7 @@ The current requirements file pins:
 flights==0.9.0
 ```
 
-The local adapter imports the package as `fli`, which is expected for the `flights` Python package.
+The local adapter imports the package as `fli`, which is expected for the `flights` Python package. Setup installs the generated `requirements.lock` to pin the full dependency tree and verify hashes; see [dependency maintenance](DEPENDENCY_MAINTENANCE.md).
 
 ## Refresh Modes
 
