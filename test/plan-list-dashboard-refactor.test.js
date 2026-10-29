@@ -87,7 +87,8 @@ test("plan-list public seam preserves loaded data and generated page semantics",
   await rm(root, { recursive: true, force: true });
 });
 
-test("plan list dashboard renders active and archived navigation semantics", async () => {
+test("plan list dashboard renders active and archived navigation semantics", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-07-01T00:00:00Z") });
   const root = await mkdtemp(path.join(tmpdir(), "flight-plan-list-"));
   const planDir = path.join(root, "plans", "fixture");
   await createPlanFromText({

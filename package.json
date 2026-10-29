@@ -27,6 +27,6 @@
     "release:audit": "node scripts/release-audit.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": "^24.22.2"
   }
 }

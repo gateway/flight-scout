@@ -27,17 +27,13 @@ That creates a project-local Python virtual environment in `.venv`, installs the
 Manual setup is still supported:
 
 ```bash
-python -m pip install -r src/providers/fli/requirements.txt
+python -m pip install --require-hashes -r src/providers/fli/requirements.lock
 FLI_PYTHON=/path/to/your/python
 ```
 
-The current requirements file pins:
+The requirements file temporarily pins [upstream commit `5c092f1`](https://github.com/punitarani/fli/commit/5c092f12e10db925f68768d97cb08cb7fdcbbacc), which restores searches through Google's public search page. PyPI's `flights==0.9.0` uses the old RPC endpoint and can silently report failed requests as empty results.
 
-```text
-flights==0.9.0
-```
-
-The local adapter imports the package as `fli`, which is expected for the `flights` Python package.
+The local adapter imports the package as `fli`, which is expected for the `flights` Python package. Setup installs the generated `requirements.lock` to pin the full dependency tree and verify hashes; see [dependency maintenance](DEPENDENCY_MAINTENANCE.md).
 
 ## Refresh Modes
 

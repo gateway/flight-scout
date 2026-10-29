@@ -4,6 +4,8 @@ This guide walks through the public workflow for creating a flight plan, reviewi
 
 ## 1. Install
 
+Install Node.js 24.22.2 LTS and Python 3.11 or newer. With nvm, run `nvm install` and `nvm use` inside the cloned repo before setup; `.nvmrc` is also used by CI.
+
 ```bash
 git clone https://github.com/gateway/flight-scout.git
 cd flight-scout
@@ -25,7 +27,7 @@ Ask with `$flight-plan-riffer` in Codex or `/flight-plan-riffer` in Claude Code.
 Only use the manual path if you already have a Python environment you want to manage yourself:
 
 ```bash
-python -m pip install -r src/providers/fli/requirements.txt
+python -m pip install --require-hashes -r src/providers/fli/requirements.lock
 echo "FLI_PYTHON=/path/to/your/python" > .env
 ```
 

@@ -8,7 +8,7 @@ const venvDir = path.join(root, ".venv");
 const venvPython = process.platform === "win32"
   ? path.join(venvDir, "Scripts", "python.exe")
   : path.join(venvDir, "bin", "python");
-const requirements = path.join(root, "src", "providers", "fli", "requirements.txt");
+const requirements = path.join(root, "src", "providers", "fli", "requirements.lock");
 const envPath = path.join(root, ".env");
 
 async function exists(file) {
@@ -76,7 +76,7 @@ if (!await exists(venvPython)) {
 }
 
 console.log("Installing the pinned local flight-search runtime...");
-run(venvPython, ["-m", "pip", "install", "-r", requirements]);
+run(venvPython, ["-m", "pip", "install", "--require-hashes", "-r", requirements]);
 
 await writeEnv();
 

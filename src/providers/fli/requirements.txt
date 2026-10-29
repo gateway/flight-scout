@@ -1,1 +1,7 @@
-flights==0.9.0
+# Temporary upstream transport fix; PyPI 0.9.0 uses Google's retired RPC.
+# Keep the immutable commit and generated archive hash until a fixed release ships.
+flights @ https://github.com/punitarani/fli/archive/5c092f12e10db925f68768d97cb08cb7fdcbbacc.tar.gz
+
+# Keep venv installation/build tooling above known security fixes.
+pip>=26.2
+setuptools>=84.1.0

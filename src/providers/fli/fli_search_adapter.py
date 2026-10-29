@@ -25,7 +25,7 @@ def main() -> int:
         print(json.dumps({
             "ok": False,
             "code": "fli-dependency-missing",
-            "message": f"Missing Python dependency: {exc.name}. Install src/providers/fli/requirements.txt.",
+            "message": f"Missing Python dependency: {exc.name}. Run npm run setup.",
         }))
         return 0
     except Exception as exc:  # noqa: BLE001 - provider failures should be JSON, not tracebacks.
