@@ -66,11 +66,7 @@ The normal `npm run serve` command only listens on `127.0.0.1`, which means the 
 
 `npm run setup` creates the project virtual environment for you, installs the flight-search runtime, and writes the local `.env` file. You do not need to manually create a Python environment.
 
-The direct Python runtime dependency is:
-
-```text
-flights==0.9.0
-```
+The flight-search runtime is temporarily pinned to [upstream commit `5c092f1`](https://github.com/punitarani/fli/commit/5c092f12e10db925f68768d97cb08cb7fdcbbacc). The published `flights==0.9.0` release uses an endpoint that no longer returns search results; this commit restores searches through Google's public search page.
 
 Setup installs `src/providers/fli/requirements.lock`, which pins the transitive dependencies and verifies package hashes. See [dependency maintenance](docs/DEPENDENCY_MAINTENANCE.md) for the update and audit procedure.
 

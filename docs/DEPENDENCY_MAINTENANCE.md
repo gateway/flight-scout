@@ -8,6 +8,10 @@ Flight Scout has no npm package dependencies. Node.js itself still needs securit
 
 `npm run setup` installs the lockfile with `pip --require-hashes`. Running setup again updates an existing `.venv` to the locked versions, including pip and setuptools. It does not remove unrelated packages already installed in that environment.
 
+The provider is temporarily an immutable source archive at upstream commit `5c092f12e10db925f68768d97cb08cb7fdcbbacc`, with its SHA-256 in the lockfile. That commit restores the Google search-page transport and raises an error for missing search payloads. The published `flights==0.9.0` release uses a retired RPC path and silently converts its error response into empty inventory. Replace the source pin only when a published release includes the transport fix and passes the adapter regression and live checks. Advisory scans cannot fully verify an unreleased source build; review the pinned source as well.
+
+After upgrading an existing installation, preview the selected searches with `npm run plan:refresh-plan -- plans/<plan-id>/plan.json --mode standard`, then force that refresh with `npm run plan:refresh -- plans/<plan-id>/plan.json --mode standard --live --force` so cached empty responses from the old provider are not reused.
+
 ## Update And Audit
 
 Use Python 3.11 and keep maintenance tools separate from the application's `.venv`. The commands below use POSIX virtual-environment paths; on Windows use the corresponding `Scripts` executables.

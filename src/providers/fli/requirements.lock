@@ -162,9 +162,8 @@ curl-cffi==0.17.0 \
     --hash=sha256:f8cf840646d3e57637b8caae7d0d93334dfed0bfbf6f160b36479a7d6069d547 \
     --hash=sha256:fc33ca76371bc96df3c4e8593449a1e0e28086bf8016addb851905090069178c
     # via flights
-flights==0.9.0 \
-    --hash=sha256:77a7cf2a2d8324706edd2bf1fc320fc9165d51ab059275b13f858475defd9beb \
-    --hash=sha256:fdef6cd892482fbc17171450d6eb51341f48ad10528c4f71fe97677afb0f0533
+flights @ https://github.com/punitarani/fli/archive/5c092f12e10db925f68768d97cb08cb7fdcbbacc.tar.gz \
+    --hash=sha256:0ba42de27d052d74a644457246142f1c0039b7127d219c23195625c4455f89be
     # via -r src/providers/fli/requirements.txt
 h11==0.16.0 \
     --hash=sha256:4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1 \
@@ -365,7 +364,9 @@ ratelimit==2.2.1 \
 rich==15.0.0 \
     --hash=sha256:33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb \
     --hash=sha256:edd07a4824c6b40189fb7ac9bc4c52536e9780fbbfbddf6f1e2502c31b068c36
-    # via typer
+    # via
+    #   flights
+    #   typer
 setuptools==84.2.1 \
     --hash=sha256:3ff8b3b5492a0aa66960f4419365a86b84e013070d4313e4d4a6894f5d64d6bc \
     --hash=sha256:ca140b45d5325a9478f880e351484f62fef15f336462e449ca0c03c873d589c2
